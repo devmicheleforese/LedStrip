@@ -109,8 +109,9 @@ uint32_t hex2int(const char *hex) {
 class DeviceCallback: public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     std::string value = pCharacteristic->getValue();
-    brightness = value[0];
-    color = Adafruit_NeoPixel::Color(value[1], value[2], value[3]);
+
+    brightness = value[1];
+    color = Adafruit_NeoPixel::Color(value[2], value[3], value[4]);
 
 
     //RGB_Color c = hex_to_rgb(hex2int(value.c_str()));
@@ -126,10 +127,10 @@ class DeviceCallback: public BLECharacteristicCallbacks {
       Serial.println("Lenght: ");
       Serial.println(value.length());
 
-      Serial.println("Brightness: " + String((int)value[0]));
-      Serial.println("Red: " + String((int)value[1]));
-      Serial.println("Green: " + String((int)value[2]));
-      Serial.println("Blue: " + String((int)value[3]));
+      Serial.println("Brightness: " + String((int)value[1]));
+      Serial.println("Red: " + String((int)value[2]));
+      Serial.println("Green: " + String((int)value[3]));
+      Serial.println("Blue: " + String((int)value[4]));
 
       Serial.println("******************************");
     }
@@ -173,8 +174,10 @@ void setup() {
   // Start advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
-  pAdvertising->setScanResponse(false);
   pAdvertising->setMinPreferred(0x0);  // set value to 0x00 to not advertise this parameter
+  // pAdvertising->setMinPreferred(0x06);
+  // pAdvertising->setMinPreferred(0x12);
+  // pAdvertising->setMinInterval(1);
   BLEDevice::startAdvertising();
   Serial.println("Waiting a client connection to notify...");
 
@@ -189,53 +192,29 @@ void setup() {
 }
 
 void loop() {
-    // // notify changed value
-    // if (deviceConnected) {
-    //     pCharacteristic->setValue((uint8_t*)&value, 4);
-    //     pCharacteristic->notify();
-    //     value++;
-    //     delay(10); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
-    // }
-    // disconnecting
-    if (!deviceConnected && oldDeviceConnected) {
-        delay(500); // give the bluetooth stack the chance to get things ready
-        pServer->startAdvertising(); // restart advertising
-        Serial.println("start advertising");
-        oldDeviceConnected = deviceConnected;
-    }
-    // connecting
-    if (deviceConnected && !oldDeviceConnected) {
-        // do stuff here on connecting
-        oldDeviceConnected = deviceConnected;
-    }
-
-
-  // // Loop mods
-  // if (digitalRead(int(Board_Pin::push_button)) == 0)
-  // {
-  //   if(mode == Mode_Type::sinfun) {
-  //     mode = Mode_Type::rainbow;
-  //   } else {
-  //     mode = Mode_Type(int(mode) + 1);
-  //   }
-  //   while(digitalRead(int(Board_Pin::push_button)) == 0) ;
+  // // notify changed value
+  // if (deviceConnected) {
+  //     pCharacteristic->setValue((uint8_t*)&value, 4);
+  //     pCharacteristic->notify();
+  //     value++;
+  //     delay(10); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
   // }
-
-  // Serial.println(digitalRead(int(Board_Pin::push_button)));
+  // disconnecting
+  if (!deviceConnected && oldDeviceConnected) {
+      delay(500); // give the bluetooth stack the chance to get things ready
+      pServer->startAdvertising(); // restart advertising
+      Serial.println("start advertising");
+      oldDeviceConnected = deviceConnected;
+  }
+  // connecting
+  if (deviceConnected && !oldDeviceConnected) {
+      // do stuff here on connecting
+      oldDeviceConnected = deviceConnected;
+  }
 
   fixed_color(strip, color, brightness);
 
-  // switch (mode)
-  // {
-  // case Mode_Type::rainbow:
-  //   rainbow(strip);
-  //   break;
-  // case Mode_Type::fixed_color:
-  //   fixed_color(strip, color, brightness);
-  //   break;
-  // default:
-  //   break;
-  // }
+
   strip.show();
-  delay(5);
+  delay(100);
 }
