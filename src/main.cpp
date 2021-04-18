@@ -29,7 +29,6 @@
 #include <iostream>
 
 #include <Adafruit_NeoPixel.h>
-#include "functions/functions.hpp"
 
 
 
@@ -55,16 +54,14 @@ enum class Board_Pin
 Adafruit_NeoPixel led(1, int(Board_Pin::led), NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel strip(30, int(Board_Pin::strip), NEO_GRB + NEO_KHZ800);
 
-int brightness = 255;
-
-uint32_t color = 0;
 
 const String ID_DEVICE = "StripLed_v1";
+
 
 enum class Mode_Type : byte{
   fixed_color = 1,
   rainbow = 2,
-  sinfun = 3,
+  color_split = 3,
 } mode;
 
 const int DEVICE_MODES_LENGHT = 3;
@@ -72,23 +69,79 @@ const int DEVICE_MODES_LENGHT = 3;
 byte DEVICE_MODES[DEVICE_MODES_LENGHT] = {
   (int)Mode_Type::fixed_color,
   (int)Mode_Type::rainbow,
-  (int)Mode_Type::sinfun,
+  (int)Mode_Type::color_split,
+};
+
+struct DefaultData {
+  int ledLenght;
+  int brightness;
+} defaultData;
+struct FixedColorData {
+  uint32_t color;
+} fixedColorData;
+
+struct RainbowData {
+  double velocity;
+} rainbowData;
+struct ColorSplitData {
+  int endFirstLedSplit;
+  uint32_t color1;
+  uint32_t color2;
+} colorSplitData;
+
+struct RGB_Color {
+  unsigned int r;
+  unsigned int g;
+  unsigned int b;
 };
 
 
+long firstPixelHue = 0;
 
+void fixed_color(Adafruit_NeoPixel & strip, DefaultData dData, FixedColorData& data) {
 
-
-class MyServerCallbacks: public BLEServerCallbacks {
-  void onConnect(BLEServer* pServer) {
-    deviceConnected = true;
-    BLEDevice::startAdvertising();
-  };
-
-  void onDisconnect(BLEServer* pServer) {
-    deviceConnected = false;
+  for (int i = 0; i < strip.numPixels(); ++i)
+  {
+    strip.setPixelColor(i, data.color);
   }
-};
+  strip.setBrightness(dData.brightness);
+}
+
+void rainbow(Adafruit_NeoPixel& strip, DefaultData dData, RainbowData& data) {
+  // firstPixelHue += 256;
+  // if (firstPixelHue >= 3 * 65536)
+  // {
+  //   firstPixelHue = 0;
+  // }
+  // for (int i = 0; i < strip.numPixels(); i++)
+  // {
+  //   int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
+  //   strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue, 255,defaultData.brightness)));
+  // }
+
+  firstPixelHue += rainbowData.velocity;
+  if (firstPixelHue >= 3 * 65536)
+  {
+    firstPixelHue = 0;
+  }
+  for (int i = 0; i < strip.numPixels(); i++)
+  {
+    int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
+    strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue, 255,defaultData.brightness)));
+  }
+}
+
+void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& data) {
+
+}
+
+
+RGB_Color hex_to_rgb(int hex) {
+  byte red = hex >> 16;
+  byte green = (hex & 0x00ff00) >> 8;
+  byte blue = (hex & 0x0000ff);
+  return RGB_Color{red, green, blue};
+}
 
 uint32_t hex2int(const char *hex) {
   uint32_t val = 0;
@@ -106,33 +159,97 @@ uint32_t hex2int(const char *hex) {
 }
 
 
+
+class MyServerCallbacks: public BLEServerCallbacks {
+  void onConnect(BLEServer* pServer) {
+    deviceConnected = true;
+    BLEDevice::startAdvertising();
+  };
+
+  void onDisconnect(BLEServer* pServer) {
+    deviceConnected = false;
+  }
+};
+
+void setDefaultSettings(const std::string &val, int firstIndex){
+  int ledLenghtIndex = firstIndex;
+  defaultData.ledLenght = (int)val[ledLenghtIndex];
+
+  strip.clear();
+  strip.updateLength(defaultData.ledLenght);
+
+
+  int brightnessIndex = firstIndex + 1;
+  defaultData.brightness = (int)val[brightnessIndex];
+  Serial.println("************Default***********");
+  Serial.println("LedLenght: " + String(defaultData.ledLenght));
+  Serial.println("Velocity: " + String(defaultData.brightness));
+  Serial.println("******************************");
+}
+
+void setFixedColorData(const std::string &val, int firstIndex){
+  int colorIndex = firstIndex;
+  fixedColorData.color = Adafruit_NeoPixel::Color(val[colorIndex], val[colorIndex + 1], val[colorIndex + 2]);
+
+  Serial.println("********FixedColor Mod********");
+  Serial.println("Color: " + String(val[colorIndex]) + "," + String(val[colorIndex + 1]) + "," + String(val[colorIndex + 2]));
+  Serial.println("******************************");
+}
+
+void setRainbowData(const std::string &val, int firstIndex) {
+  int velocityIndex = firstIndex;
+  rainbowData.velocity = (int)val[velocityIndex];
+
+  Serial.println("**********Rainbow Mod*********");
+  Serial.println("Brightness: " + String(defaultData.brightness));
+  Serial.println("Velocity: " + String(rainbowData.velocity));
+  Serial.println("******************************");
+}
+
+void setColorSplitData(const std::string &val, int firstIndex) {
+  int brightnessIndex = firstIndex;
+  defaultData.brightness = (int)val[brightnessIndex];
+
+  int endFirstLedSplitIndex = firstIndex + 1;
+  colorSplitData.endFirstLedSplit = (int)val[endFirstLedSplitIndex];
+
+  int color1Index = firstIndex + 2;
+  colorSplitData.color1 = Adafruit_NeoPixel::Color(val[color1Index], val[color1Index + 1], val[color1Index + 2]);
+
+  int color2Index = firstIndex + 5;
+  colorSplitData.color2 = Adafruit_NeoPixel::Color(val[color2Index], val[color2Index + 1], val[color2Index + 2]);
+
+  Serial.println("********ColorSplit Mod********");
+  Serial.println("Brightness: " + String(defaultData.brightness));
+  Serial.println("FirstSplitLenght: " + String(colorSplitData.endFirstLedSplit));
+  Serial.println("SecondSplitLenght: " + String(defaultData.ledLenght - colorSplitData.endFirstLedSplit));
+  Serial.println("Color1: " + String(val[color1Index]) + "," + String(val[color1Index + 1]) + "," + String(val[color1Index + 2]));
+  Serial.println("Color2: " + String(val[color2Index]) + "," + String(val[color2Index + 1]) + "," + String(val[color2Index + 2]));
+  Serial.println("******************************");
+}
+
 class DeviceCallback: public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     std::string value = pCharacteristic->getValue();
 
-    brightness = value[1];
-    color = Adafruit_NeoPixel::Color(value[2], value[3], value[4]);
-
-
-    //RGB_Color c = hex_to_rgb(hex2int(value.c_str()));
-
-    //color = Adafruit_NeoPixel::Color(c.r, c.g, c.b);
-
-    //brightness = String(value.c_str()).toInt();
-
-    if(value.length() > 0) {
-
-      Serial.println("******************************");
-      Serial.println("Message: ");
-      Serial.println("Lenght: ");
-      Serial.println(value.length());
-
-      Serial.println("Brightness: " + String((int)value[1]));
-      Serial.println("Red: " + String((int)value[2]));
-      Serial.println("Green: " + String((int)value[3]));
-      Serial.println("Blue: " + String((int)value[4]));
-
-      Serial.println("******************************");
+    switch ((int)value[0]) {
+    case 0:
+      setDefaultSettings(value, 1);
+      break;
+    case (int)Mode_Type::fixed_color:
+      setFixedColorData(value, 1);
+      mode = Mode_Type::fixed_color;
+      break;
+    case (int)Mode_Type::rainbow:
+      setRainbowData(value, 1);
+      mode = Mode_Type::rainbow;
+      break;
+    case (int)Mode_Type::color_split:
+      setColorSplitData(value, 1);
+      mode = Mode_Type::color_split;
+      break;
+    default:
+      break;
     }
   }
 };
@@ -187,34 +304,37 @@ void setup() {
 
 
   pinMode(int(Board_Pin::push_button), INPUT);
-
-  // mode = Mode_Type::rainbow;
 }
 
 void loop() {
-  // // notify changed value
-  // if (deviceConnected) {
-  //     pCharacteristic->setValue((uint8_t*)&value, 4);
-  //     pCharacteristic->notify();
-  //     value++;
-  //     delay(10); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
-  // }
-  // disconnecting
+  if (deviceConnected) {
+    delay(10); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
+  }
   if (!deviceConnected && oldDeviceConnected) {
-      delay(500); // give the bluetooth stack the chance to get things ready
-      pServer->startAdvertising(); // restart advertising
-      Serial.println("start advertising");
-      oldDeviceConnected = deviceConnected;
+    delay(500); // give the bluetooth stack the chance to get things ready
+    pServer->startAdvertising(); // restart advertising
+    Serial.println("start advertising");
+    oldDeviceConnected = deviceConnected;
   }
   // connecting
   if (deviceConnected && !oldDeviceConnected) {
-      // do stuff here on connecting
-      oldDeviceConnected = deviceConnected;
+    // do stuff here on connecting
+    oldDeviceConnected = deviceConnected;
   }
 
-  fixed_color(strip, color, brightness);
-
+  switch (mode) {
+  case Mode_Type::fixed_color:
+    fixed_color(strip, defaultData, fixedColorData);
+    break;
+  case Mode_Type::rainbow:
+    rainbow(strip, defaultData, rainbowData);
+    break;
+  case Mode_Type::color_split:
+    color_split(strip, defaultData, colorSplitData);
+    break;
+  default:
+    break;
+  }
 
   strip.show();
-  delay(100);
 }
