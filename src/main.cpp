@@ -99,11 +99,11 @@ struct RGB_Color {
 long firstPixelHue = 0;
 
 void fixed_color(Adafruit_NeoPixel & strip, DefaultData dData, FixedColorData& data) {
-
-  for (int i = 0; i < strip.numPixels(); ++i)
-  {
-    strip.setPixelColor(i, data.color);
-  }
+  strip.fill(data.color, 0, dData.ledLenght);
+  // for (int i = 0; i < strip.numPixels(); ++i)
+  // {
+  //   strip.setPixelColor(i, data.color);
+  // }
   strip.setBrightness(dData.brightness);
 }
 
@@ -118,8 +118,7 @@ void rainbow(Adafruit_NeoPixel& strip, DefaultData dData, RainbowData& data) {
   //   int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
   //   strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue, 255,defaultData.brightness)));
   // }
-
-  firstPixelHue += rainbowData.velocity;
+  firstPixelHue += (rainbowData.velocity /100.0)* 2000;
   if (firstPixelHue >= 3 * 65536)
   {
     firstPixelHue = 0;
@@ -132,7 +131,14 @@ void rainbow(Adafruit_NeoPixel& strip, DefaultData dData, RainbowData& data) {
 }
 
 void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& data) {
-
+  for (int i = 0; i < data.endFirstLedSplit; ++i)
+  {
+    strip.setPixelColor(i, data.color1);
+  }
+  for(int i = data.endFirstLedSplit; i < dData.ledLenght; ++i) {
+    strip.setPixelColor(i, data.color2);
+  }
+  strip.setBrightness(dData.brightness);
 }
 
 
@@ -171,11 +177,14 @@ class MyServerCallbacks: public BLEServerCallbacks {
   }
 };
 
-void setDefaultSettings(const std::string &val, int firstIndex){
+void setDefaultSettings(std::string &val, int firstIndex){
   int ledLenghtIndex = firstIndex;
   defaultData.ledLenght = (int)val[ledLenghtIndex];
 
-  strip.clear();
+  Serial.print("Cleared.");
+  //strip.clear();
+  strip.fill(0,0,30);
+  strip.show();
   strip.updateLength(defaultData.ledLenght);
 
 
@@ -189,10 +198,10 @@ void setDefaultSettings(const std::string &val, int firstIndex){
 
 void setFixedColorData(const std::string &val, int firstIndex){
   int colorIndex = firstIndex;
-  fixedColorData.color = Adafruit_NeoPixel::Color(val[colorIndex], val[colorIndex + 1], val[colorIndex + 2]);
+  fixedColorData.color = Adafruit_NeoPixel::Color((int)val[colorIndex], (int)val[colorIndex + 1], (int)val[colorIndex + 2]);
 
   Serial.println("********FixedColor Mod********");
-  Serial.println("Color: " + String(val[colorIndex]) + "," + String(val[colorIndex + 1]) + "," + String(val[colorIndex + 2]));
+  Serial.println("Color: " + String((int)val[colorIndex]) + "," + String((int)val[colorIndex + 1]) + "," + String((int)val[colorIndex + 2]));
   Serial.println("******************************");
 }
 
@@ -201,26 +210,21 @@ void setRainbowData(const std::string &val, int firstIndex) {
   rainbowData.velocity = (int)val[velocityIndex];
 
   Serial.println("**********Rainbow Mod*********");
-  Serial.println("Brightness: " + String(defaultData.brightness));
   Serial.println("Velocity: " + String(rainbowData.velocity));
   Serial.println("******************************");
 }
 
-void setColorSplitData(const std::string &val, int firstIndex) {
-  int brightnessIndex = firstIndex;
-  defaultData.brightness = (int)val[brightnessIndex];
-
-  int endFirstLedSplitIndex = firstIndex + 1;
+void setColorSplitData(const std::string &val, int index) {
+  int endFirstLedSplitIndex = index;
   colorSplitData.endFirstLedSplit = (int)val[endFirstLedSplitIndex];
 
-  int color1Index = firstIndex + 2;
+  int color1Index = index + 1;
   colorSplitData.color1 = Adafruit_NeoPixel::Color(val[color1Index], val[color1Index + 1], val[color1Index + 2]);
 
-  int color2Index = firstIndex + 5;
+  int color2Index = index + 4;
   colorSplitData.color2 = Adafruit_NeoPixel::Color(val[color2Index], val[color2Index + 1], val[color2Index + 2]);
 
   Serial.println("********ColorSplit Mod********");
-  Serial.println("Brightness: " + String(defaultData.brightness));
   Serial.println("FirstSplitLenght: " + String(colorSplitData.endFirstLedSplit));
   Serial.println("SecondSplitLenght: " + String(defaultData.ledLenght - colorSplitData.endFirstLedSplit));
   Serial.println("Color1: " + String(val[color1Index]) + "," + String(val[color1Index + 1]) + "," + String(val[color1Index + 2]));
@@ -231,6 +235,7 @@ void setColorSplitData(const std::string &val, int firstIndex) {
 class DeviceCallback: public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     std::string value = pCharacteristic->getValue();
+    Serial.println(value.length());
 
     switch ((int)value[0]) {
     case 0:
