@@ -81,7 +81,7 @@ struct FixedColorData {
 } fixedColorData;
 
 struct RainbowData {
-  double velocity;
+  int velocity;
 } rainbowData;
 struct ColorSplitData {
   int endFirstLedSplit;
@@ -96,7 +96,7 @@ struct RGB_Color {
 };
 
 
-long firstPixelHue = 0;
+
 
 void fixed_color(Adafruit_NeoPixel & strip, DefaultData dData, FixedColorData& data) {
   strip.fill(data.color, 0, dData.ledLenght);
@@ -108,24 +108,26 @@ void fixed_color(Adafruit_NeoPixel & strip, DefaultData dData, FixedColorData& d
 }
 
 void rainbow(Adafruit_NeoPixel& strip, DefaultData dData, RainbowData& data) {
-  // firstPixelHue += 256;
-  // if (firstPixelHue >= 3 * 65536)
-  // {
-  //   firstPixelHue = 0;
-  // }
-  // for (int i = 0; i < strip.numPixels(); i++)
-  // {
-  //   int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
-  //   strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue, 255,defaultData.brightness)));
-  // }
-  firstPixelHue += (rainbowData.velocity /100.0)* 2000;
-  if (firstPixelHue >= 3 * 65536)
-  {
-    firstPixelHue = 0;
-  }
+  static long firstPixelHue = 0;
+  long hueDifference = 65536L / strip.numPixels();
+
+  // millis() % 1000 Transorms the internal clock in the claped version of single second
+  // Then the result is translated into double with (result / 1000.0)
+  // Now we have a function that returns a value between 0 and 1 so we * 65535L
+  // The Max value for a HUE Color.
+  //
+  // 4 * rainbowData.velocity / 100
+  // (rainbowData.velocity / 100) limits the velocity between 0 and 1
+  // the the "4" means: We do the full walk of the HUE that times a second.
+  firstPixelHue = int(((int(millis() * 3 * rainbowData.velocity / 100) % 1000) / 1000.0) * 65535L);
+
   for (int i = 0; i < strip.numPixels(); i++)
   {
-    int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
+    int pixelHue = firstPixelHue + (i * hueDifference);
+    if (pixelHue >65536)
+    {
+      pixelHue -= 65535;
+    }
     strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue, 255,defaultData.brightness)));
   }
 }
@@ -179,13 +181,14 @@ class MyServerCallbacks: public BLEServerCallbacks {
 
 void setDefaultSettings(std::string &val, int firstIndex){
   int ledLenghtIndex = firstIndex;
-  defaultData.ledLenght = (int)val[ledLenghtIndex];
+  if((int)val[ledLenghtIndex]) {
+    defaultData.ledLenght = (int)val[ledLenghtIndex];
+    strip.clear();
+    strip.show();
+    strip.updateLength(defaultData.ledLenght);
+  }
 
-  Serial.print("Cleared.");
-  //strip.clear();
-  strip.fill(0,0,30);
-  strip.show();
-  strip.updateLength(defaultData.ledLenght);
+
 
 
   int brightnessIndex = firstIndex + 1;
@@ -210,7 +213,7 @@ void setRainbowData(const std::string &val, int firstIndex) {
   rainbowData.velocity = (int)val[velocityIndex];
 
   Serial.println("**********Rainbow Mod*********");
-  Serial.println("Velocity: " + String(rainbowData.velocity));
+  Serial.println("Velocity: " + String((int)rainbowData.velocity));
   Serial.println("******************************");
 }
 
@@ -219,16 +222,16 @@ void setColorSplitData(const std::string &val, int index) {
   colorSplitData.endFirstLedSplit = (int)val[endFirstLedSplitIndex];
 
   int color1Index = index + 1;
-  colorSplitData.color1 = Adafruit_NeoPixel::Color(val[color1Index], val[color1Index + 1], val[color1Index + 2]);
+  colorSplitData.color1 = Adafruit_NeoPixel::Color((int)val[color1Index], (int)val[color1Index + 1], (int)val[color1Index + 2]);
 
   int color2Index = index + 4;
-  colorSplitData.color2 = Adafruit_NeoPixel::Color(val[color2Index], val[color2Index + 1], val[color2Index + 2]);
+  colorSplitData.color2 = Adafruit_NeoPixel::Color((int)val[color2Index], (int)val[color2Index + 1], (int)val[color2Index + 2]);
 
   Serial.println("********ColorSplit Mod********");
   Serial.println("FirstSplitLenght: " + String(colorSplitData.endFirstLedSplit));
   Serial.println("SecondSplitLenght: " + String(defaultData.ledLenght - colorSplitData.endFirstLedSplit));
-  Serial.println("Color1: " + String(val[color1Index]) + "," + String(val[color1Index + 1]) + "," + String(val[color1Index + 2]));
-  Serial.println("Color2: " + String(val[color2Index]) + "," + String(val[color2Index + 1]) + "," + String(val[color2Index + 2]));
+  Serial.println("Color1: " + String((int)val[color1Index]) + "," + String((int)val[color1Index + 1]) + "," + String((int)val[color1Index + 2]));
+  Serial.println("Color2: " + String((int)val[color2Index]) + "," + String((int)val[color2Index + 1]) + "," + String((int)val[color2Index + 2]));
   Serial.println("******************************");
 }
 
