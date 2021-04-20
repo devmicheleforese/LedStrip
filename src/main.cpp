@@ -25,8 +25,8 @@
 #include <BLE2902.h>
 #include "Arduino.h"
 #include <BLEUUID.h>
-#include <string>
-#include <iostream>
+#include "SPIFFS.h"
+#include <ArduinoJson.h>
 
 #include <Adafruit_NeoPixel.h>
 
@@ -41,8 +41,11 @@ uint32_t value = 0;
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
 
-#define SERVICE_UUID        "f4923e28-b468-46f7-bba8-b752fe1e14b8"
-#define CHARACTERISTIC_UUID "a48a5e2d-e5e2-4252-8ba2-21435ec2399e"
+struct BluetoothSett {
+  char Service_UUID[64];
+  char Characteristic_UUID[64];
+};
+
 
 enum class Board_Pin
 {
@@ -51,59 +54,59 @@ enum class Board_Pin
   push_button = 16,
 };
 
-Adafruit_NeoPixel led(1, int(Board_Pin::led), NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel strip(30, int(Board_Pin::strip), NEO_GRB + NEO_KHZ800);
-
-
-const String ID_DEVICE = "StripLed_v1";
-
-
 enum class Mode_Type : byte{
   fixed_color = 1,
   rainbow = 2,
   color_split = 3,
-} mode;
-
-const int DEVICE_MODES_LENGHT = 3;
-
-byte DEVICE_MODES[DEVICE_MODES_LENGHT] = {
-  (int)Mode_Type::fixed_color,
-  (int)Mode_Type::rainbow,
-  (int)Mode_Type::color_split,
 };
 
+
+
+
+//----- Modes Data structures -----//
 struct DefaultData {
   int ledLenght;
   int brightness;
-} defaultData;
+};
 struct FixedColorData {
-  uint32_t color;
-} fixedColorData;
+  byte color[3];
+};
 
 struct RainbowData {
   int velocity;
-} rainbowData;
+};
 struct ColorSplitData {
   int endFirstLedSplit;
-  uint32_t color1;
-  uint32_t color2;
-} colorSplitData;
+  byte color1[3];
+  byte color2[3];
+};
 
 struct RGB_Color {
-  unsigned int r;
-  unsigned int g;
-  unsigned int b;
+  byte r;
+  byte g;
+  byte b;
 };
 
 
+#pragma region Declarations
+Adafruit_NeoPixel led(1, int(Board_Pin::led), NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip(30, int(Board_Pin::strip), NEO_GRB + NEO_KHZ800);
+BluetoothSett bluetoothSett;
+char ID_DEVICE[64];
+Mode_Type mode;
+
+DefaultData defaultData;
+FixedColorData fixedColorData;
+RainbowData rainbowData;
+ColorSplitData colorSplitData;
+#pragma endregion Declarations
 
 
+
+// Loop Functions
+#pragma region LoopFunctions
 void fixed_color(Adafruit_NeoPixel & strip, DefaultData dData, FixedColorData& data) {
-  strip.fill(data.color, 0, dData.ledLenght);
-  // for (int i = 0; i < strip.numPixels(); ++i)
-  // {
-  //   strip.setPixelColor(i, data.color);
-  // }
+  strip.fill(Adafruit_NeoPixel::Color(data.color[0], data.color[1], data.color[2]), 0, dData.ledLenght);
   strip.setBrightness(dData.brightness);
 }
 
@@ -118,7 +121,7 @@ void rainbow(Adafruit_NeoPixel& strip, DefaultData dData, RainbowData& data) {
   //
   // 4 * rainbowData.velocity / 100
   // (rainbowData.velocity / 100) limits the velocity between 0 and 1
-  // the the "4" means: We do the full walk of the HUE that times a second.
+  // the the "3" means: We do the full walk of the HUE that times a second.
   firstPixelHue = int(((int(millis() * 3 * rainbowData.velocity / 100) % 1000) / 1000.0) * 65535L);
 
   for (int i = 0; i < strip.numPixels(); i++)
@@ -133,38 +136,29 @@ void rainbow(Adafruit_NeoPixel& strip, DefaultData dData, RainbowData& data) {
 }
 
 void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& data) {
-  for (int i = 0; i < data.endFirstLedSplit; ++i)
-  {
-    strip.setPixelColor(i, data.color1);
-  }
-  for(int i = data.endFirstLedSplit; i < dData.ledLenght; ++i) {
-    strip.setPixelColor(i, data.color2);
-  }
-  strip.setBrightness(dData.brightness);
+  // Set First Color
+  strip.fill(
+    Adafruit_NeoPixel::Color(
+      data.color1[0],
+      data.color1[1],
+      data.color1[2]),
+    0,
+    data.endFirstLedSplit
+  );
+
+  // Set Second Color
+  strip.fill(
+    Adafruit_NeoPixel::Color(
+      data.color1[0],
+      data.color1[1],
+      data.color1[2]),
+    data.endFirstLedSplit
+  );
 }
+#pragma endregion LoopFuctions
 
 
-RGB_Color hex_to_rgb(int hex) {
-  byte red = hex >> 16;
-  byte green = (hex & 0x00ff00) >> 8;
-  byte blue = (hex & 0x0000ff);
-  return RGB_Color{red, green, blue};
-}
 
-uint32_t hex2int(const char *hex) {
-  uint32_t val = 0;
-  while (*hex) {
-    // get current character then increment
-    uint8_t byte = *hex++;
-    // transform hex character to the 4bit equivalent number, using the ascii table indexes
-    if (byte >= '0' && byte <= '9') byte = byte - '0';
-    else if (byte >= 'a' && byte <='f') byte = byte - 'a' + 10;
-    else if (byte >= 'A' && byte <='F') byte = byte - 'A' + 10;
-    // shift 4 to make space for new digit, and add the 4 bits of the new digit
-    val = (val << 4) | (byte & 0xF);
-  }
-  return val;
-}
 
 
 
@@ -179,7 +173,9 @@ class MyServerCallbacks: public BLEServerCallbacks {
   }
 };
 
-void setDefaultSettings(std::string &val, int firstIndex){
+#pragma region CallbackSetMods
+
+void setDefaultSettings(const byte *val, int firstIndex){
   int ledLenghtIndex = firstIndex;
   if((int)val[ledLenghtIndex]) {
     defaultData.ledLenght = (int)val[ledLenghtIndex];
@@ -187,9 +183,6 @@ void setDefaultSettings(std::string &val, int firstIndex){
     strip.show();
     strip.updateLength(defaultData.ledLenght);
   }
-
-
-
 
   int brightnessIndex = firstIndex + 1;
   defaultData.brightness = (int)val[brightnessIndex];
@@ -199,16 +192,19 @@ void setDefaultSettings(std::string &val, int firstIndex){
   Serial.println("******************************");
 }
 
-void setFixedColorData(const std::string &val, int firstIndex){
+void setFixedColorData(const byte *val, int firstIndex){
   int colorIndex = firstIndex;
-  fixedColorData.color = Adafruit_NeoPixel::Color((int)val[colorIndex], (int)val[colorIndex + 1], (int)val[colorIndex + 2]);
+  fixedColorData.color[0] = (int)val[colorIndex];
+  fixedColorData.color[1] = (int)val[colorIndex + 1];
+  fixedColorData.color[2] = (int)val[colorIndex + 2];
+
 
   Serial.println("********FixedColor Mod********");
-  Serial.println("Color: " + String((int)val[colorIndex]) + "," + String((int)val[colorIndex + 1]) + "," + String((int)val[colorIndex + 2]));
+  Serial.println("Color: " + String(fixedColorData.color[0] + "," + fixedColorData.color[1]) + "," + fixedColorData.color[2]);
   Serial.println("******************************");
 }
 
-void setRainbowData(const std::string &val, int firstIndex) {
+void setRainbowData(const byte *val, int firstIndex) {
   int velocityIndex = firstIndex;
   rainbowData.velocity = (int)val[velocityIndex];
 
@@ -217,55 +213,285 @@ void setRainbowData(const std::string &val, int firstIndex) {
   Serial.println("******************************");
 }
 
-void setColorSplitData(const std::string &val, int index) {
+void setColorSplitData(const byte *val, int index) {
   int endFirstLedSplitIndex = index;
   colorSplitData.endFirstLedSplit = (int)val[endFirstLedSplitIndex];
 
   int color1Index = index + 1;
-  colorSplitData.color1 = Adafruit_NeoPixel::Color((int)val[color1Index], (int)val[color1Index + 1], (int)val[color1Index + 2]);
+  colorSplitData.color1[0] = val[color1Index];
+  colorSplitData.color1[1] = val[color1Index + 1];
+  colorSplitData.color1[2] = val[color1Index + 2];
+
 
   int color2Index = index + 4;
-  colorSplitData.color2 = Adafruit_NeoPixel::Color((int)val[color2Index], (int)val[color2Index + 1], (int)val[color2Index + 2]);
+  colorSplitData.color1[0] = val[color2Index];
+  colorSplitData.color1[1] = val[color2Index + 1];
+  colorSplitData.color1[2] = val[color2Index + 2];
 
   Serial.println("********ColorSplit Mod********");
   Serial.println("FirstSplitLenght: " + String(colorSplitData.endFirstLedSplit));
   Serial.println("SecondSplitLenght: " + String(defaultData.ledLenght - colorSplitData.endFirstLedSplit));
-  Serial.println("Color1: " + String((int)val[color1Index]) + "," + String((int)val[color1Index + 1]) + "," + String((int)val[color1Index + 2]));
-  Serial.println("Color2: " + String((int)val[color2Index]) + "," + String((int)val[color2Index + 1]) + "," + String((int)val[color2Index + 2]));
+  Serial.println("Color1: " + String(colorSplitData.color1[0]) + "," + String(colorSplitData.color1[1]) + "," + String(colorSplitData.color1[2]));
+  Serial.println("Color2: " + String(colorSplitData.color1[0]) + "," + String(colorSplitData.color1[1]) + "," + String(colorSplitData.color1[2]));
   Serial.println("******************************");
 }
+
+#pragma endregion CallbackSetMods
+
+
+void data_transfer(const byte* data) {
+  switch (data[0]) {
+  case 0:
+    setDefaultSettings(data, 1);
+    break;
+  case (int)Mode_Type::fixed_color:
+    setFixedColorData(data, 1);
+    mode = Mode_Type::fixed_color;
+    break;
+  case (int)Mode_Type::rainbow:
+    setRainbowData(data, 1);
+    mode = Mode_Type::rainbow;
+    break;
+  case (int)Mode_Type::color_split:
+    setColorSplitData(data, 1);
+    mode = Mode_Type::color_split;
+    break;
+  default:
+    break;
+  }
+}
+
+void listAllFiles() {
+  File root = SPIFFS.open("/");
+  File file = root.openNextFile();
+  while(file) {
+    Serial.println("File: " + String(file.name()));
+    file = root.openNextFile();
+  }
+  root.close();
+  file.close();
+}
+
+void readDatafromFile(const char* filename) {
+  File file = SPIFFS.open(filename);
+  if(file) {
+    StaticJsonDocument<1024> sett;
+    DeserializationError error = deserializeJson(sett, file);
+    if(error) Serial.println("Error readDatafromFile");
+    Serial.println(
+      // TODO: Add ["color"] between call.
+      String((int)sett["FixedColorData"][0]) + "," +
+      String((int)sett["FixedColorData"][1]) + "," +
+      String((int)sett["FixedColorData"][2])
+    );
+  }
+  file.close();
+}
+
+bool save_data(const char* filename) {
+  File outFile = SPIFFS.open(filename, "w+");
+
+  StaticJsonDocument<1024> sett;
+
+  // if(serializeJson(outFile, sett) == 0) {
+  // }
+
+  sett["DefaultData"]["ledLenght"] = defaultData.ledLenght;
+  sett["DefaultData"]["brightness"] = defaultData.brightness;
+
+  sett["FixedColorData"]["color"][0] = fixedColorData.color[0];
+  sett["FixedColorData"]["color"][1] = fixedColorData.color[1];
+  sett["FixedColorData"]["color"][2] = fixedColorData.color[2];
+
+  sett["RainbowData"]["velocity"] = rainbowData.velocity;
+
+  sett["ColorSplitData"]["endFirstLedSplit"] = colorSplitData.endFirstLedSplit;
+  sett["ColorSplitData"]["color1"][0] = colorSplitData.color1[0];
+  sett["ColorSplitData"]["color1"][1] = colorSplitData.color1[1];
+  sett["ColorSplitData"]["color1"][2] = colorSplitData.color1[2];
+
+  sett["ColorSplitData"]["color2"][0] = colorSplitData.color1[0];
+  sett["ColorSplitData"]["color2"][1] = colorSplitData.color1[1];
+  sett["ColorSplitData"]["color2"][2] = colorSplitData.color1[2];
+
+  sett["mode"] = (byte)mode;
+
+  Serial.println(String((int)sett["FixedColorData"]["color"][0]));
+  Serial.println(String((int)sett["FixedColorData"]["color"][1]));
+  Serial.println(String((int)sett["FixedColorData"]["color"][2]));
+
+  if(serializeJson(sett, outFile) == 0) {
+    return false;
+  }
+
+  outFile.close();
+
+  listAllFiles();
+  readDatafromFile("/settings.json");
+
+  return true;
+}
+
+
+
+
 
 class DeviceCallback: public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     std::string value = pCharacteristic->getValue();
-    Serial.println(value.length());
 
-    switch ((int)value[0]) {
+    const byte * buffer = (byte*)value.c_str();
+    // Serial.println(value.length());
+
+    switch (buffer[0])
+    {
+    // Save Data
     case 0:
-      setDefaultSettings(value, 1);
+      if(!save_data("/settings.json")) {
+        Serial.println("Error: Data Not Saved");
+      } else {
+        Serial.println("Data Saved");
+      }
       break;
-    case (int)Mode_Type::fixed_color:
-      setFixedColorData(value, 1);
-      mode = Mode_Type::fixed_color;
+
+    // data-transfer
+    case 1:
+      data_transfer(&buffer[1]);
       break;
-    case (int)Mode_Type::rainbow:
-      setRainbowData(value, 1);
-      mode = Mode_Type::rainbow;
-      break;
-    case (int)Mode_Type::color_split:
-      setColorSplitData(value, 1);
-      mode = Mode_Type::color_split;
-      break;
+
+    // Error Handling
     default:
+      Serial.println("Error Buffer, Recived: " + String((int)buffer[0]));
       break;
     }
   }
 };
 
 
+bool SPIFFS_init() {
+  if(!SPIFFS.begin(true)){
+    Serial.println("An Error has occurred while mounting SPIFFS");
+    return false;
+  }
+  return true;
+}
+
 
 void setup() {
   Serial.begin(9600);
+
+  Serial.println("BEGIN");
+
+  delay(5000);
+
+  // Initialize SPIFFS
+  if(!SPIFFS_init()) return;
+
+  // Open File Settings
+  File file = SPIFFS.open("/settings.json");
+
+  // Error Checking for reading file
+  if(!file) {
+    Serial.print("Failed to open file for reading");
+    return;
+  }
+
+  // Initialize Json document for settings
+  StaticJsonDocument<1024> sett;
+  // Error checking
+  DeserializationError error = deserializeJson(sett, file);
+  if(error) Serial.print("Failed to Deserialize.");
+
+
+  //-------- retrive settings --------//
+
+  strlcpy(
+    ID_DEVICE,
+    sett["id_device"],
+    sizeof(ID_DEVICE)
+  );
+
+  // SERVICE_UUID
+  strlcpy(bluetoothSett.Service_UUID,
+    sett["SERVICE_UUID"] | "example.com",
+    sizeof(bluetoothSett.Service_UUID)
+  );
+  Serial.println("Service_UUID: " + String(bluetoothSett.Service_UUID));
+
+  // CHARACTERISTIC_UUID
+  strlcpy(bluetoothSett.Characteristic_UUID,
+    sett["CHARACTERISTIC_UUID"] | "example.com",
+    sizeof(bluetoothSett.Characteristic_UUID)
+  );
+  Serial.println("Characteristic_UUID: " + String(bluetoothSett.Characteristic_UUID));
+
+  // DefaultData
+  defaultData.ledLenght     = sett["DefaultData"]["ledLenght"];
+  defaultData.brightness    = sett["DefaultData"]["brightness"];
+  Serial.println("defaultData.ledLenght: " + String(defaultData.ledLenght));
+  Serial.println("defaultData.brightness: " + String(defaultData.brightness));
+
+  // FixedColorData
+  fixedColorData.color[0] = sett["FixedColorData"]["color"][0];
+  fixedColorData.color[1] = sett["FixedColorData"]["color"][1];
+  fixedColorData.color[2] = sett["FixedColorData"]["color"][2];
+  Serial.println(
+    "fixedColorData.color: " +
+    String((int)sett["FixedColorData"]["color"][0]) + "," +
+    String((int)sett["FixedColorData"]["color"][1]) + "," +
+    String((int)sett["FixedColorData"]["color"][2])
+  );
+
+
+  // RainbowData
+  rainbowData.velocity = sett["RainbowData"]["velocity"];
+  Serial.println("rainbowData.velocity: " + String(rainbowData.velocity));
+
+  // ColorSplitData
+  colorSplitData.endFirstLedSplit = sett["ColorSplitData"]["endFirstLedSplit"];
+
+  colorSplitData.color1[0] = sett["ColorSplitData"]["color1"][0];
+  colorSplitData.color1[1] = sett["ColorSplitData"]["color1"][1];
+  colorSplitData.color1[2] = sett["ColorSplitData"]["color1"][2];
+
+  colorSplitData.color1[0] = sett["ColorSplitData"]["color2"][0];
+  colorSplitData.color1[1] = sett["ColorSplitData"]["color2"][1];
+  colorSplitData.color1[2] = sett["ColorSplitData"]["color2"][2];
+
+  Serial.println("colorSplitData.endFirstLedSplit: " + String(colorSplitData.endFirstLedSplit));
+  Serial.println(
+    "colorSplitData.color1: " +
+    String(colorSplitData.color1[0]) + "," +
+    String(colorSplitData.color1[1]) + "," +
+    String(colorSplitData.color1[2])
+  );
+
+  Serial.println(
+    "colorSplitData.color2: " +
+    String(colorSplitData.color1[0]) + "," +
+    String(colorSplitData.color1[1]) + "," +
+    String(colorSplitData.color1[2])
+  );
+
+  // Mode
+  switch ((int)sett["mode"])
+  {
+  case (int)Mode_Type::fixed_color:
+    mode = Mode_Type::fixed_color;
+    break;
+  case (int)Mode_Type::rainbow:
+    mode = Mode_Type::rainbow;
+    break;
+  case (int)Mode_Type::color_split:
+    mode = Mode_Type::color_split;
+    break;
+  default:
+    mode = Mode_Type::fixed_color;
+    break;
+  }
+  Serial.println(String((int)sett["mode"]));
+
+  //-------- Initialize BLE Operations --------//
 
   // Create the BLE Device
   BLEDevice::init("ESP32");
@@ -275,11 +501,11 @@ void setup() {
   pServer->setCallbacks(new MyServerCallbacks());
 
   // Create the BLE Service
-  BLEService *pService = pServer->createService(SERVICE_UUID);
+  BLEService *pService = pServer->createService(bluetoothSett.Service_UUID);
 
   // Create a BLE Characteristic
   pCharacteristic = pService->createCharacteristic(
-                      CHARACTERISTIC_UUID,
+                      bluetoothSett.Characteristic_UUID,
                       BLECharacteristic::PROPERTY_READ   |
                       BLECharacteristic::PROPERTY_WRITE  |
                       BLECharacteristic::PROPERTY_NOTIFY |
@@ -298,7 +524,7 @@ void setup() {
 
   // Start advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->addServiceUUID(bluetoothSett.Service_UUID);
   pAdvertising->setMinPreferred(0x0);  // set value to 0x00 to not advertise this parameter
   // pAdvertising->setMinPreferred(0x06);
   // pAdvertising->setMinPreferred(0x12);
@@ -312,6 +538,7 @@ void setup() {
 
 
   pinMode(int(Board_Pin::push_button), INPUT);
+  file.close();
 }
 
 void loop() {

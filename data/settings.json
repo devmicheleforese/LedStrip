@@ -1,0 +1,21 @@
+{
+  "id_device": "stripled-v1.0",
+  "SERVICE_UUID": "f4923e28-b468-46f7-bba8-b752fe1e14b8",
+  "CHARACTERISTIC_UUID": "a48a5e2d-e5e2-4252-8ba2-21435ec2399e",
+  "DefaultData": {
+    "ledLenght": 30,
+    "brightness": 255
+  },
+  "FixedColorData": {
+    "color": [0,0,255]
+  },
+  "RainbowData": {
+    "velocity": 50
+  },
+  "ColorSplitData": {
+    "endFirstLedSplit": 10,
+    "color1": [100,100,200],
+    "color2": [25,25,150]
+  },
+  "mode": 1
+}
