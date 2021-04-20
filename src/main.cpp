@@ -159,9 +159,6 @@ void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& d
 
 
 
-
-
-
 class MyServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
     deviceConnected = true;
@@ -177,45 +174,52 @@ class MyServerCallbacks: public BLEServerCallbacks {
 
 void setDefaultSettings(const byte *val, int firstIndex){
   int ledLenghtIndex = firstIndex;
-  if((int)val[ledLenghtIndex]) {
-    defaultData.ledLenght = (int)val[ledLenghtIndex];
+  if(val[ledLenghtIndex]) {
+    defaultData.ledLenght = val[ledLenghtIndex];
     strip.clear();
     strip.show();
     strip.updateLength(defaultData.ledLenght);
   }
 
   int brightnessIndex = firstIndex + 1;
-  defaultData.brightness = (int)val[brightnessIndex];
+  defaultData.brightness = val[brightnessIndex];
   Serial.println("************Default***********");
   Serial.println("LedLenght: " + String(defaultData.ledLenght));
-  Serial.println("Velocity: " + String(defaultData.brightness));
+  Serial.println("Brightness: " + String(defaultData.brightness));
   Serial.println("******************************");
+  strip.show();
 }
 
 void setFixedColorData(const byte *val, int firstIndex){
   int colorIndex = firstIndex;
-  fixedColorData.color[0] = (int)val[colorIndex];
-  fixedColorData.color[1] = (int)val[colorIndex + 1];
-  fixedColorData.color[2] = (int)val[colorIndex + 2];
+  fixedColorData.color[0] = val[colorIndex];
+  fixedColorData.color[1] = val[colorIndex + 1];
+  fixedColorData.color[2] = val[colorIndex + 2];
 
 
   Serial.println("********FixedColor Mod********");
-  Serial.println("Color: " + String(fixedColorData.color[0] + "," + fixedColorData.color[1]) + "," + fixedColorData.color[2]);
+  Serial.println(
+    "Color: " +
+    String(fixedColorData.color[0]) + "," +
+    String(fixedColorData.color[1]) + "," +
+    String(fixedColorData.color[2])
+  );
+  printf("Color: %u,%u,%u.", fixedColorData.color[0], fixedColorData.color[1], fixedColorData.color[2]);
   Serial.println("******************************");
 }
 
 void setRainbowData(const byte *val, int firstIndex) {
   int velocityIndex = firstIndex;
-  rainbowData.velocity = (int)val[velocityIndex];
+  rainbowData.velocity = val[velocityIndex];
 
   Serial.println("**********Rainbow Mod*********");
-  Serial.println("Velocity: " + String((int)rainbowData.velocity));
+  Serial.println("Velocity: " + String(rainbowData.velocity));
   Serial.println("******************************");
 }
 
 void setColorSplitData(const byte *val, int index) {
   int endFirstLedSplitIndex = index;
-  colorSplitData.endFirstLedSplit = (int)val[endFirstLedSplitIndex];
+  colorSplitData.endFirstLedSplit = val[endFirstLedSplitIndex];
 
   int color1Index = index + 1;
   colorSplitData.color1[0] = val[color1Index];
@@ -275,26 +279,31 @@ void listAllFiles() {
 void readDatafromFile(const char* filename) {
   File file = SPIFFS.open(filename);
   if(file) {
-    StaticJsonDocument<1024> sett;
+    DynamicJsonDocument sett(1024);
     DeserializationError error = deserializeJson(sett, file);
     if(error) Serial.println("Error readDatafromFile");
     Serial.println(
       // TODO: Add ["color"] between call.
-      String((int)sett["FixedColorData"][0]) + "," +
-      String((int)sett["FixedColorData"][1]) + "," +
-      String((int)sett["FixedColorData"][2])
+      String((int)sett["FixedColorData"]["color"][0]) + "," +
+      String((int)sett["FixedColorData"]["color"][1]) + "," +
+      String((int)sett["FixedColorData"]["color"][2])
     );
   }
   file.close();
 }
 
 bool save_data(const char* filename) {
-  File outFile = SPIFFS.open(filename, "w+");
+  File outFile = SPIFFS.open(filename, "r");
 
-  StaticJsonDocument<1024> sett;
+  DynamicJsonDocument sett(1024);
 
-  // if(serializeJson(outFile, sett) == 0) {
-  // }
+  deserializeJson(sett, outFile);
+
+  outFile.close();
+
+  const char* server = sett["SERVICE_UUID"];
+
+  Serial.println(server);
 
   sett["DefaultData"]["ledLenght"] = defaultData.ledLenght;
   sett["DefaultData"]["brightness"] = defaultData.brightness;
@@ -320,14 +329,19 @@ bool save_data(const char* filename) {
   Serial.println(String((int)sett["FixedColorData"]["color"][1]));
   Serial.println(String((int)sett["FixedColorData"]["color"][2]));
 
+  outFile = SPIFFS.open(filename, "w");
+
   if(serializeJson(sett, outFile) == 0) {
     return false;
   }
 
   outFile.close();
 
+
+
   listAllFiles();
   readDatafromFile("/settings.json");
+
 
   return true;
 }
@@ -378,7 +392,7 @@ bool SPIFFS_init() {
 
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   Serial.println("BEGIN");
 
@@ -387,17 +401,23 @@ void setup() {
   // Initialize SPIFFS
   if(!SPIFFS_init()) return;
 
+  Serial.println("SPIFFS Initialized");
+
   // Open File Settings
-  File file = SPIFFS.open("/settings.json");
+  File file = SPIFFS.open("/settings.json", "r");
+
+  Serial.println("File opened");
 
   // Error Checking for reading file
   if(!file) {
     Serial.print("Failed to open file for reading");
     return;
+  } else {
+    Serial.println("File opened");
   }
 
   // Initialize Json document for settings
-  StaticJsonDocument<1024> sett;
+  DynamicJsonDocument sett(1024);
   // Error checking
   DeserializationError error = deserializeJson(sett, file);
   if(error) Serial.print("Failed to Deserialize.");
@@ -405,11 +425,16 @@ void setup() {
 
   //-------- retrive settings --------//
 
-  strlcpy(
-    ID_DEVICE,
-    sett["id_device"],
-    sizeof(ID_DEVICE)
-  );
+  Serial.println("Starting Retriving");
+
+
+  // strlcpy(
+  //   ID_DEVICE,
+  //   sett["id_device"],
+  //   sizeof(ID_DEVICE)
+  // );
+
+  Serial.println("id_device Retrived");
 
   // SERVICE_UUID
   strlcpy(bluetoothSett.Service_UUID,
