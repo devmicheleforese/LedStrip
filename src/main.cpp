@@ -149,11 +149,12 @@ void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& d
   // Set Second Color
   strip.fill(
     Adafruit_NeoPixel::Color(
-      data.color1[0],
-      data.color1[1],
-      data.color1[2]),
+      data.color2[0],
+      data.color2[1],
+      data.color2[2]),
     data.endFirstLedSplit
   );
+  strip.setBrightness(dData.brightness);
 }
 #pragma endregion LoopFuctions
 
@@ -177,7 +178,6 @@ void setDefaultSettings(const byte *val, int firstIndex){
   if(val[ledLenghtIndex]) {
     defaultData.ledLenght = val[ledLenghtIndex];
     strip.clear();
-    strip.show();
     strip.updateLength(defaultData.ledLenght);
   }
 
@@ -204,7 +204,6 @@ void setFixedColorData(const byte *val, int firstIndex){
     String(fixedColorData.color[1]) + "," +
     String(fixedColorData.color[2])
   );
-  printf("Color: %u,%u,%u.", fixedColorData.color[0], fixedColorData.color[1], fixedColorData.color[2]);
   Serial.println("******************************");
 }
 
@@ -228,15 +227,15 @@ void setColorSplitData(const byte *val, int index) {
 
 
   int color2Index = index + 4;
-  colorSplitData.color1[0] = val[color2Index];
-  colorSplitData.color1[1] = val[color2Index + 1];
-  colorSplitData.color1[2] = val[color2Index + 2];
+  colorSplitData.color2[0] = val[color2Index];
+  colorSplitData.color2[1] = val[color2Index + 1];
+  colorSplitData.color2[2] = val[color2Index + 2];
 
   Serial.println("********ColorSplit Mod********");
   Serial.println("FirstSplitLenght: " + String(colorSplitData.endFirstLedSplit));
   Serial.println("SecondSplitLenght: " + String(defaultData.ledLenght - colorSplitData.endFirstLedSplit));
   Serial.println("Color1: " + String(colorSplitData.color1[0]) + "," + String(colorSplitData.color1[1]) + "," + String(colorSplitData.color1[2]));
-  Serial.println("Color2: " + String(colorSplitData.color1[0]) + "," + String(colorSplitData.color1[1]) + "," + String(colorSplitData.color1[2]));
+  Serial.println("Color2: " + String(colorSplitData.color2[0]) + "," + String(colorSplitData.color2[1]) + "," + String(colorSplitData.color2[2]));
   Serial.println("******************************");
 }
 
@@ -293,18 +292,22 @@ void readDatafromFile(const char* filename) {
 }
 
 bool save_data(const char* filename) {
+
+  // Open the file in READ_MODE
   File outFile = SPIFFS.open(filename, "r");
 
+  // Allocate JsonDocument
   DynamicJsonDocument sett(1024);
 
-  deserializeJson(sett, outFile);
+  // Parse outFile in Json
+  if(deserializeJson(sett, outFile) != DeserializationError::Ok) {
+    return false;
+  }
 
+  // Close the outFile
   outFile.close();
 
-  const char* server = sett["SERVICE_UUID"];
-
-  Serial.println(server);
-
+  // Sett Parameters
   sett["DefaultData"]["ledLenght"] = defaultData.ledLenght;
   sett["DefaultData"]["brightness"] = defaultData.brightness;
 
@@ -323,6 +326,8 @@ bool save_data(const char* filename) {
   sett["ColorSplitData"]["color2"][1] = colorSplitData.color1[1];
   sett["ColorSplitData"]["color2"][2] = colorSplitData.color1[2];
 
+  Serial.println(String((int)mode));
+
   sett["mode"] = (byte)mode;
 
   Serial.println(String((int)sett["FixedColorData"]["color"][0]));
@@ -339,9 +344,8 @@ bool save_data(const char* filename) {
 
 
 
-  listAllFiles();
-  readDatafromFile("/settings.json");
-
+  //listAllFiles();
+  //readDatafromFile("/settings.json");
 
   return true;
 }
