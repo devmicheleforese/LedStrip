@@ -117,6 +117,27 @@ void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& d
 class MyServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
     deviceConnected = true;
+    char data[10] = "Ciao";
+    pCharacteristic->setWriteNoResponseProperty(false);
+    pCharacteristic->setValue((uint8_t*)&data, sizeof(data));
+    Serial.println(data);
+    pCharacteristic->notify();
+
+    char buffer[20];
+
+    File file = SPIFFS.open("/settings.json");
+    for (size_t i = 0; file.available() || i<20; i++)
+    {
+      buffer[i] = file.read();
+      if(i == 19) {
+        pCharacteristic->setValue((uint8_t*)&buffer, sizeof(data));
+        i = 0;
+      }
+    }
+
+
+    file.size();
+
     BLEDevice::startAdvertising();
   };
 
@@ -317,6 +338,7 @@ class DeviceCallback: public BLECharacteristicCallbacks {
       Serial.println("Error Buffer, Recived: " + String((int)buffer[0]));
       break;
     }
+    delay(3);
   }
 };
 
