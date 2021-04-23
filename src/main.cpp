@@ -107,7 +107,6 @@ ColorSplitData colorSplitData;
 #pragma region LoopFunctions
 void fixed_color(Adafruit_NeoPixel & strip, DefaultData dData, FixedColorData& data) {
   strip.fill(Adafruit_NeoPixel::Color(data.color[0], data.color[1], data.color[2]), 0, dData.ledLenght);
-  strip.setBrightness(dData.brightness);
 }
 
 void rainbow(Adafruit_NeoPixel& strip, DefaultData dData, RainbowData& data) {
@@ -154,7 +153,6 @@ void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& d
       data.color2[2]),
     data.endFirstLedSplit
   );
-  strip.setBrightness(dData.brightness);
 }
 #pragma endregion LoopFuctions
 
@@ -183,11 +181,12 @@ void setDefaultSettings(const byte *val, int firstIndex){
 
   int brightnessIndex = firstIndex + 1;
   defaultData.brightness = val[brightnessIndex];
+  strip.setBrightness(defaultData.brightness);
+
   Serial.println("************Default***********");
   Serial.println("LedLenght: " + String(defaultData.ledLenght));
   Serial.println("Brightness: " + String(defaultData.brightness));
   Serial.println("******************************");
-  strip.show();
 }
 
 void setFixedColorData(const byte *val, int firstIndex){
