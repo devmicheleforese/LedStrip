@@ -60,12 +60,8 @@ Adafruit_NeoPixel strip(30, int(deviceInfo.strip_pin), NEO_GRB + NEO_KHZ800);
 // Loop Functions
 #pragma region LoopFunctions
 void fixed_color(Adafruit_NeoPixel & strip, DefaultData dData, FixedColorData& data) {
-<<<<<<< HEAD
-  strip.fill(Adafruit_NeoPixel::Color(data.color[0], data.color[1], data.color[2]), 0, dData.ledLenght);
-=======
   strip.fill(Adafruit_NeoPixel::Color(data.color.r, data.color.g, data.color.b), 0, dData.ledLenght);
   strip.setBrightness(dData.brightness);
->>>>>>> 4ef809e3043443fd66db80f031e3b4e9550e84dd
 }
 
 void rainbow(Adafruit_NeoPixel& strip, DefaultData dData, RainbowData& data) {
@@ -138,13 +134,9 @@ void setDefaultSettings(const byte *val, int firstIndex){
   }
 
   int brightnessIndex = firstIndex + 1;
-<<<<<<< HEAD
-  defaultData.brightness = val[brightnessIndex];
-  strip.setBrightness(defaultData.brightness);
+  strip.setBrightness(deviceInfo.defaultData.brightness);
 
-=======
   deviceInfo.defaultData.brightness = val[brightnessIndex];
->>>>>>> 4ef809e3043443fd66db80f031e3b4e9550e84dd
   Serial.println("************Default***********");
   Serial.println("LedLenght: " + String(deviceInfo.defaultData.ledLenght));
   Serial.println("Brightness: " + String(deviceInfo.defaultData.brightness));
