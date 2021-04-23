@@ -19,86 +19,40 @@
    A connect hander associated with the server starts a background task that performs notification
    every couple of seconds.
 */
+#include <Adafruit_NeoPixel.h>
+
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
-#include <BLE2902.h>
-#include "Arduino.h"
 #include <BLEUUID.h>
-#include "SPIFFS.h"
+#include <BLE2902.h>
+
 #include <ArduinoJson.h>
 
-#include <Adafruit_NeoPixel.h>
+#include "Arduino.h"
+#include "SPIFFS.h"
+
+#include "settings.h"
 
 
 
+
+// See the following for generating UUIDs:
+// https://www.uuidgenerator.net/
+
+
+
+
+
+#pragma region Declarations
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 uint32_t value = 0;
+Adafruit_NeoPixel led(1, int(deviceInfo.led_pin), NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip(30, int(deviceInfo.strip_pin), NEO_GRB + NEO_KHZ800);
 
-// See the following for generating UUIDs:
-// https://www.uuidgenerator.net/
-
-struct BluetoothSett {
-  char Service_UUID[64];
-  char Characteristic_UUID[64];
-};
-
-
-enum class Board_Pin
-{
-  led = 13,
-  strip = 14,
-  push_button = 16,
-};
-
-enum class Mode_Type : byte{
-  fixed_color = 1,
-  rainbow = 2,
-  color_split = 3,
-};
-
-
-
-
-//----- Modes Data structures -----//
-struct DefaultData {
-  int ledLenght;
-  int brightness;
-};
-struct FixedColorData {
-  byte color[3];
-};
-
-struct RainbowData {
-  int velocity;
-};
-struct ColorSplitData {
-  int endFirstLedSplit;
-  byte color1[3];
-  byte color2[3];
-};
-
-struct RGB_Color {
-  byte r;
-  byte g;
-  byte b;
-};
-
-
-#pragma region Declarations
-Adafruit_NeoPixel led(1, int(Board_Pin::led), NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel strip(30, int(Board_Pin::strip), NEO_GRB + NEO_KHZ800);
-BluetoothSett bluetoothSett;
-char ID_DEVICE[64];
-Mode_Type mode;
-
-DefaultData defaultData;
-FixedColorData fixedColorData;
-RainbowData rainbowData;
-ColorSplitData colorSplitData;
 #pragma endregion Declarations
 
 
@@ -106,7 +60,12 @@ ColorSplitData colorSplitData;
 // Loop Functions
 #pragma region LoopFunctions
 void fixed_color(Adafruit_NeoPixel & strip, DefaultData dData, FixedColorData& data) {
+<<<<<<< HEAD
   strip.fill(Adafruit_NeoPixel::Color(data.color[0], data.color[1], data.color[2]), 0, dData.ledLenght);
+=======
+  strip.fill(Adafruit_NeoPixel::Color(data.color.r, data.color.g, data.color.b), 0, dData.ledLenght);
+  strip.setBrightness(dData.brightness);
+>>>>>>> 4ef809e3043443fd66db80f031e3b4e9550e84dd
 }
 
 void rainbow(Adafruit_NeoPixel& strip, DefaultData dData, RainbowData& data) {
@@ -121,7 +80,7 @@ void rainbow(Adafruit_NeoPixel& strip, DefaultData dData, RainbowData& data) {
   // 4 * rainbowData.velocity / 100
   // (rainbowData.velocity / 100) limits the velocity between 0 and 1
   // the the "3" means: We do the full walk of the HUE that times a second.
-  firstPixelHue = int(((int(millis() * 3 * rainbowData.velocity / 100) % 1000) / 1000.0) * 65535L);
+  firstPixelHue = int(((int(millis() * 3 * deviceInfo.rainbowData.velocity / 100) % 1000) / 1000.0) * 65535L);
 
   for (int i = 0; i < strip.numPixels(); i++)
   {
@@ -130,7 +89,7 @@ void rainbow(Adafruit_NeoPixel& strip, DefaultData dData, RainbowData& data) {
     {
       pixelHue -= 65535;
     }
-    strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue, 255,defaultData.brightness)));
+    strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue, 255,deviceInfo.defaultData.brightness)));
   }
 }
 
@@ -138,9 +97,9 @@ void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& d
   // Set First Color
   strip.fill(
     Adafruit_NeoPixel::Color(
-      data.color1[0],
-      data.color1[1],
-      data.color1[2]),
+      data.color1.r,
+      data.color1.g,
+      data.color1.b),
     0,
     data.endFirstLedSplit
   );
@@ -148,15 +107,16 @@ void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& d
   // Set Second Color
   strip.fill(
     Adafruit_NeoPixel::Color(
-      data.color2[0],
-      data.color2[1],
-      data.color2[2]),
+      data.color2.r,
+      data.color2.g,
+      data.color2.b),
     data.endFirstLedSplit
   );
 }
 #pragma endregion LoopFuctions
 
 
+#pragma region CallbackSetMods
 
 class MyServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
@@ -169,72 +129,83 @@ class MyServerCallbacks: public BLEServerCallbacks {
   }
 };
 
-#pragma region CallbackSetMods
-
 void setDefaultSettings(const byte *val, int firstIndex){
   int ledLenghtIndex = firstIndex;
   if(val[ledLenghtIndex]) {
-    defaultData.ledLenght = val[ledLenghtIndex];
+    deviceInfo.defaultData.ledLenght = val[ledLenghtIndex];
     strip.clear();
-    strip.updateLength(defaultData.ledLenght);
+    strip.updateLength(deviceInfo.defaultData.ledLenght);
   }
 
   int brightnessIndex = firstIndex + 1;
+<<<<<<< HEAD
   defaultData.brightness = val[brightnessIndex];
   strip.setBrightness(defaultData.brightness);
 
+=======
+  deviceInfo.defaultData.brightness = val[brightnessIndex];
+>>>>>>> 4ef809e3043443fd66db80f031e3b4e9550e84dd
   Serial.println("************Default***********");
-  Serial.println("LedLenght: " + String(defaultData.ledLenght));
-  Serial.println("Brightness: " + String(defaultData.brightness));
+  Serial.println("LedLenght: " + String(deviceInfo.defaultData.ledLenght));
+  Serial.println("Brightness: " + String(deviceInfo.defaultData.brightness));
   Serial.println("******************************");
 }
 
 void setFixedColorData(const byte *val, int firstIndex){
   int colorIndex = firstIndex;
-  fixedColorData.color[0] = val[colorIndex];
-  fixedColorData.color[1] = val[colorIndex + 1];
-  fixedColorData.color[2] = val[colorIndex + 2];
+  deviceInfo.fixedColorData.color.r = val[colorIndex];
+  deviceInfo.fixedColorData.color.g = val[colorIndex + 1];
+  deviceInfo.fixedColorData.color.b = val[colorIndex + 2];
 
 
   Serial.println("********FixedColor Mod********");
   Serial.println(
     "Color: " +
-    String(fixedColorData.color[0]) + "," +
-    String(fixedColorData.color[1]) + "," +
-    String(fixedColorData.color[2])
+    String(deviceInfo.fixedColorData.color.r) + "," +
+    String(deviceInfo.fixedColorData.color.g) + "," +
+    String(deviceInfo.fixedColorData.color.b)
   );
   Serial.println("******************************");
 }
 
 void setRainbowData(const byte *val, int firstIndex) {
   int velocityIndex = firstIndex;
-  rainbowData.velocity = val[velocityIndex];
+  deviceInfo.rainbowData.velocity = val[velocityIndex];
 
   Serial.println("**********Rainbow Mod*********");
-  Serial.println("Velocity: " + String(rainbowData.velocity));
+  Serial.println("Velocity: " + String(deviceInfo.rainbowData.velocity));
   Serial.println("******************************");
 }
 
 void setColorSplitData(const byte *val, int index) {
   int endFirstLedSplitIndex = index;
-  colorSplitData.endFirstLedSplit = val[endFirstLedSplitIndex];
+  deviceInfo.colorSplitData.endFirstLedSplit = val[endFirstLedSplitIndex];
 
   int color1Index = index + 1;
-  colorSplitData.color1[0] = val[color1Index];
-  colorSplitData.color1[1] = val[color1Index + 1];
-  colorSplitData.color1[2] = val[color1Index + 2];
+  deviceInfo.colorSplitData.color1.r = val[color1Index];
+  deviceInfo.colorSplitData.color1.g = val[color1Index + 1];
+  deviceInfo.colorSplitData.color1.b = val[color1Index + 2];
 
 
   int color2Index = index + 4;
-  colorSplitData.color2[0] = val[color2Index];
-  colorSplitData.color2[1] = val[color2Index + 1];
-  colorSplitData.color2[2] = val[color2Index + 2];
+  deviceInfo.colorSplitData.color2.r = val[color2Index];
+  deviceInfo.colorSplitData.color2.g = val[color2Index + 1];
+  deviceInfo.colorSplitData.color2.b = val[color2Index + 2];
 
   Serial.println("********ColorSplit Mod********");
-  Serial.println("FirstSplitLenght: " + String(colorSplitData.endFirstLedSplit));
-  Serial.println("SecondSplitLenght: " + String(defaultData.ledLenght - colorSplitData.endFirstLedSplit));
-  Serial.println("Color1: " + String(colorSplitData.color1[0]) + "," + String(colorSplitData.color1[1]) + "," + String(colorSplitData.color1[2]));
-  Serial.println("Color2: " + String(colorSplitData.color2[0]) + "," + String(colorSplitData.color2[1]) + "," + String(colorSplitData.color2[2]));
+  Serial.println("FirstSplitLenght: " + String(deviceInfo.colorSplitData.endFirstLedSplit));
+  Serial.println("SecondSplitLenght: " + String(deviceInfo.defaultData.ledLenght - deviceInfo.colorSplitData.endFirstLedSplit));
+  Serial.println(
+    "Color1: " +
+    String(deviceInfo.colorSplitData.color1.r) + "," +
+    String(deviceInfo.colorSplitData.color1.g) + "," +
+    String(deviceInfo.colorSplitData.color1.b)
+    );
+  Serial.println(
+    "Color2: " +
+    String(deviceInfo.colorSplitData.color2.r) + "," +
+    String(deviceInfo.colorSplitData.color2.g) + "," +
+    String(deviceInfo.colorSplitData.color2.b));
   Serial.println("******************************");
 }
 
@@ -248,46 +219,19 @@ void data_transfer(const byte* data) {
     break;
   case (int)Mode_Type::fixed_color:
     setFixedColorData(data, 1);
-    mode = Mode_Type::fixed_color;
+    deviceInfo.mode = Mode_Type::fixed_color;
     break;
   case (int)Mode_Type::rainbow:
     setRainbowData(data, 1);
-    mode = Mode_Type::rainbow;
+    deviceInfo.mode = Mode_Type::rainbow;
     break;
   case (int)Mode_Type::color_split:
     setColorSplitData(data, 1);
-    mode = Mode_Type::color_split;
+    deviceInfo.mode = Mode_Type::color_split;
     break;
   default:
     break;
   }
-}
-
-void listAllFiles() {
-  File root = SPIFFS.open("/");
-  File file = root.openNextFile();
-  while(file) {
-    Serial.println("File: " + String(file.name()));
-    file = root.openNextFile();
-  }
-  root.close();
-  file.close();
-}
-
-void readDatafromFile(const char* filename) {
-  File file = SPIFFS.open(filename);
-  if(file) {
-    DynamicJsonDocument sett(1024);
-    DeserializationError error = deserializeJson(sett, file);
-    if(error) Serial.println("Error readDatafromFile");
-    Serial.println(
-      // TODO: Add ["color"] between call.
-      String((int)sett["FixedColorData"]["color"][0]) + "," +
-      String((int)sett["FixedColorData"]["color"][1]) + "," +
-      String((int)sett["FixedColorData"]["color"][2])
-    );
-  }
-  file.close();
 }
 
 bool save_data(const char* filename) {
@@ -307,27 +251,27 @@ bool save_data(const char* filename) {
   outFile.close();
 
   // Sett Parameters
-  sett["DefaultData"]["ledLenght"] = defaultData.ledLenght;
-  sett["DefaultData"]["brightness"] = defaultData.brightness;
+  sett["DefaultData"]["ledLenght"] = deviceInfo.defaultData.ledLenght;
+  sett["DefaultData"]["brightness"] = deviceInfo.defaultData.brightness;
 
-  sett["FixedColorData"]["color"][0] = fixedColorData.color[0];
-  sett["FixedColorData"]["color"][1] = fixedColorData.color[1];
-  sett["FixedColorData"]["color"][2] = fixedColorData.color[2];
+  sett["FixedColorData"]["color"][0] = deviceInfo.fixedColorData.color.r;
+  sett["FixedColorData"]["color"][1] = deviceInfo.fixedColorData.color.g;
+  sett["FixedColorData"]["color"][2] = deviceInfo.fixedColorData.color.b;
 
-  sett["RainbowData"]["velocity"] = rainbowData.velocity;
+  sett["RainbowData"]["velocity"] = deviceInfo.rainbowData.velocity;
 
-  sett["ColorSplitData"]["endFirstLedSplit"] = colorSplitData.endFirstLedSplit;
-  sett["ColorSplitData"]["color1"][0] = colorSplitData.color1[0];
-  sett["ColorSplitData"]["color1"][1] = colorSplitData.color1[1];
-  sett["ColorSplitData"]["color1"][2] = colorSplitData.color1[2];
+  sett["ColorSplitData"]["endFirstLedSplit"] = deviceInfo.colorSplitData.endFirstLedSplit;
+  sett["ColorSplitData"]["color1"][0] = deviceInfo.colorSplitData.color1.r;
+  sett["ColorSplitData"]["color1"][1] = deviceInfo.colorSplitData.color1.g;
+  sett["ColorSplitData"]["color1"][2] = deviceInfo.colorSplitData.color1.b;
 
-  sett["ColorSplitData"]["color2"][0] = colorSplitData.color1[0];
-  sett["ColorSplitData"]["color2"][1] = colorSplitData.color1[1];
-  sett["ColorSplitData"]["color2"][2] = colorSplitData.color1[2];
+  sett["ColorSplitData"]["color2"][0] = deviceInfo.colorSplitData.color1.r;
+  sett["ColorSplitData"]["color2"][1] = deviceInfo.colorSplitData.color1.g;
+  sett["ColorSplitData"]["color2"][2] = deviceInfo.colorSplitData.color1.b;
 
-  Serial.println(String((int)mode));
+  Serial.println(String((int)deviceInfo.mode));
 
-  sett["mode"] = (byte)mode;
+  sett["mode"] = (byte)deviceInfo.mode;
 
   Serial.println(String((int)sett["FixedColorData"]["color"][0]));
   Serial.println(String((int)sett["FixedColorData"]["color"][1]));
@@ -394,22 +338,14 @@ bool SPIFFS_init() {
 }
 
 
-void setup() {
-  Serial.begin(115200);
-
-  Serial.println("BEGIN");
-
-  delay(5000);
-
+void setJsonSettingsData() {
   // Initialize SPIFFS
   if(!SPIFFS_init()) return;
 
   Serial.println("SPIFFS Initialized");
 
   // Open File Settings
-  File file = SPIFFS.open("/settings.json", "r");
-
-  Serial.println("File opened");
+  File file = SPIFFS.open("/settings.json", FILE_READ);
 
   // Error Checking for reading file
   if(!file) {
@@ -424,45 +360,48 @@ void setup() {
   // Error checking
   DeserializationError error = deserializeJson(sett, file);
   if(error) Serial.print("Failed to Deserialize.");
+  file.close();
 
 
   //-------- retrive settings --------//
 
   Serial.println("Starting Retriving");
 
-
-  // strlcpy(
-  //   ID_DEVICE,
-  //   sett["id_device"],
-  //   sizeof(ID_DEVICE)
-  // );
+  // Device ID
+  strlcpy(
+    deviceInfo.id,
+    sett["id_device"] | "ID_NOT_FOUND",
+    sizeof(deviceInfo.id)
+  );
 
   Serial.println("id_device Retrived");
 
   // SERVICE_UUID
-  strlcpy(bluetoothSett.Service_UUID,
+  strlcpy(
+    deviceInfo.bluetoothSett.BLE_Service_UUID,
     sett["SERVICE_UUID"] | "example.com",
-    sizeof(bluetoothSett.Service_UUID)
+    sizeof(deviceInfo.bluetoothSett.BLE_Service_UUID)
   );
-  Serial.println("Service_UUID: " + String(bluetoothSett.Service_UUID));
+  Serial.println("Service_UUID: " + String(deviceInfo.bluetoothSett.BLE_Service_UUID));
 
   // CHARACTERISTIC_UUID
-  strlcpy(bluetoothSett.Characteristic_UUID,
+  strlcpy(
+    deviceInfo.bluetoothSett.BLE_Characteristic_UUID,
     sett["CHARACTERISTIC_UUID"] | "example.com",
-    sizeof(bluetoothSett.Characteristic_UUID)
+    sizeof(deviceInfo.bluetoothSett.BLE_Characteristic_UUID)
   );
-  Serial.println("Characteristic_UUID: " + String(bluetoothSett.Characteristic_UUID));
+  Serial.println("Characteristic_UUID: " + String(deviceInfo.bluetoothSett.BLE_Characteristic_UUID));
 
   // DefaultData
-  defaultData.ledLenght     = sett["DefaultData"]["ledLenght"];
-  defaultData.brightness    = sett["DefaultData"]["brightness"];
-  Serial.println("defaultData.ledLenght: " + String(defaultData.ledLenght));
-  Serial.println("defaultData.brightness: " + String(defaultData.brightness));
+  deviceInfo.defaultData.ledLenght     = sett["DefaultData"]["ledLenght"];
+  deviceInfo.defaultData.brightness    = sett["DefaultData"]["brightness"];
+  Serial.println("defaultData.ledLenght: " + String(deviceInfo.defaultData.ledLenght));
+  Serial.println("defaultData.brightness: " + String(deviceInfo.defaultData.brightness));
 
   // FixedColorData
-  fixedColorData.color[0] = sett["FixedColorData"]["color"][0];
-  fixedColorData.color[1] = sett["FixedColorData"]["color"][1];
-  fixedColorData.color[2] = sett["FixedColorData"]["color"][2];
+  deviceInfo.fixedColorData.color.r = sett["FixedColorData"]["color"][0];
+  deviceInfo.fixedColorData.color.g = sett["FixedColorData"]["color"][1];
+  deviceInfo.fixedColorData.color.b = sett["FixedColorData"]["color"][2];
   Serial.println(
     "fixedColorData.color: " +
     String((int)sett["FixedColorData"]["color"][0]) + "," +
@@ -470,55 +409,57 @@ void setup() {
     String((int)sett["FixedColorData"]["color"][2])
   );
 
-
   // RainbowData
-  rainbowData.velocity = sett["RainbowData"]["velocity"];
-  Serial.println("rainbowData.velocity: " + String(rainbowData.velocity));
+  deviceInfo.rainbowData.velocity = sett["RainbowData"]["velocity"];
+  Serial.println("rainbowData.velocity: " + String(deviceInfo.rainbowData.velocity));
 
   // ColorSplitData
-  colorSplitData.endFirstLedSplit = sett["ColorSplitData"]["endFirstLedSplit"];
+  deviceInfo.colorSplitData.endFirstLedSplit = sett["ColorSplitData"]["endFirstLedSplit"];
 
-  colorSplitData.color1[0] = sett["ColorSplitData"]["color1"][0];
-  colorSplitData.color1[1] = sett["ColorSplitData"]["color1"][1];
-  colorSplitData.color1[2] = sett["ColorSplitData"]["color1"][2];
+  deviceInfo.colorSplitData.color1.r = sett["ColorSplitData"]["color1"][0];
+  deviceInfo.colorSplitData.color1.g = sett["ColorSplitData"]["color1"][1];
+  deviceInfo.colorSplitData.color1.b = sett["ColorSplitData"]["color1"][2];
 
-  colorSplitData.color1[0] = sett["ColorSplitData"]["color2"][0];
-  colorSplitData.color1[1] = sett["ColorSplitData"]["color2"][1];
-  colorSplitData.color1[2] = sett["ColorSplitData"]["color2"][2];
+  deviceInfo.colorSplitData.color1.r = sett["ColorSplitData"]["color2"][0];
+  deviceInfo.colorSplitData.color1.g = sett["ColorSplitData"]["color2"][1];
+  deviceInfo.colorSplitData.color1.b = sett["ColorSplitData"]["color2"][2];
 
-  Serial.println("colorSplitData.endFirstLedSplit: " + String(colorSplitData.endFirstLedSplit));
+  Serial.println("colorSplitData.endFirstLedSplit: " + String(deviceInfo.colorSplitData.endFirstLedSplit));
   Serial.println(
     "colorSplitData.color1: " +
-    String(colorSplitData.color1[0]) + "," +
-    String(colorSplitData.color1[1]) + "," +
-    String(colorSplitData.color1[2])
+    String(deviceInfo.colorSplitData.color1.r) + "," +
+    String(deviceInfo.colorSplitData.color1.g) + "," +
+    String(deviceInfo.colorSplitData.color1.b)
   );
 
   Serial.println(
     "colorSplitData.color2: " +
-    String(colorSplitData.color1[0]) + "," +
-    String(colorSplitData.color1[1]) + "," +
-    String(colorSplitData.color1[2])
+    String(deviceInfo.colorSplitData.color1.r) + "," +
+    String(deviceInfo.colorSplitData.color1.g) + "," +
+    String(deviceInfo.colorSplitData.color1.b)
   );
 
   // Mode
   switch ((int)sett["mode"])
   {
   case (int)Mode_Type::fixed_color:
-    mode = Mode_Type::fixed_color;
+    deviceInfo.mode = Mode_Type::fixed_color;
     break;
   case (int)Mode_Type::rainbow:
-    mode = Mode_Type::rainbow;
+    deviceInfo.mode = Mode_Type::rainbow;
     break;
   case (int)Mode_Type::color_split:
-    mode = Mode_Type::color_split;
+    deviceInfo.mode = Mode_Type::color_split;
     break;
   default:
-    mode = Mode_Type::fixed_color;
+    deviceInfo.mode = Mode_Type::fixed_color;
     break;
   }
   Serial.println(String((int)sett["mode"]));
+}
 
+
+void BLE_init() {
   //-------- Initialize BLE Operations --------//
 
   // Create the BLE Device
@@ -529,11 +470,11 @@ void setup() {
   pServer->setCallbacks(new MyServerCallbacks());
 
   // Create the BLE Service
-  BLEService *pService = pServer->createService(bluetoothSett.Service_UUID);
+  BLEService *pService = pServer->createService(deviceInfo.bluetoothSett.BLE_Service_UUID);
 
   // Create a BLE Characteristic
   pCharacteristic = pService->createCharacteristic(
-                      bluetoothSett.Characteristic_UUID,
+                      deviceInfo.bluetoothSett.BLE_Characteristic_UUID,
                       BLECharacteristic::PROPERTY_READ   |
                       BLECharacteristic::PROPERTY_WRITE  |
                       BLECharacteristic::PROPERTY_NOTIFY |
@@ -552,21 +493,44 @@ void setup() {
 
   // Start advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  pAdvertising->addServiceUUID(bluetoothSett.Service_UUID);
+  pAdvertising->addServiceUUID(deviceInfo.bluetoothSett.BLE_Service_UUID);
   pAdvertising->setMinPreferred(0x0);  // set value to 0x00 to not advertise this parameter
-  // pAdvertising->setMinPreferred(0x06);
-  // pAdvertising->setMinPreferred(0x12);
-  // pAdvertising->setMinInterval(1);
   BLEDevice::startAdvertising();
   Serial.println("Waiting a client connection to notify...");
+}
 
+
+void setup() {
+  Serial.begin(115200);
+
+  Serial.println("BEGIN");
+
+  delay(5000);
+
+  setJsonSettingsData();
+
+  BLE_init();
 
   led.begin();
   led.show();
 
+  pinMode(int(deviceInfo.push_button_pin), INPUT);
+}
 
-  pinMode(int(Board_Pin::push_button), INPUT);
-  file.close();
+void run_mod() {
+  switch (deviceInfo.mode) {
+  case Mode_Type::fixed_color:
+    fixed_color(strip, deviceInfo.defaultData, deviceInfo.fixedColorData);
+    break;
+  case Mode_Type::rainbow:
+    rainbow(strip, deviceInfo.defaultData, deviceInfo.rainbowData);
+    break;
+  case Mode_Type::color_split:
+    color_split(strip, deviceInfo.defaultData, deviceInfo.colorSplitData);
+    break;
+  default:
+    break;
+  }
 }
 
 void loop() {
@@ -585,19 +549,13 @@ void loop() {
     oldDeviceConnected = deviceConnected;
   }
 
-  switch (mode) {
-  case Mode_Type::fixed_color:
-    fixed_color(strip, defaultData, fixedColorData);
-    break;
-  case Mode_Type::rainbow:
-    rainbow(strip, defaultData, rainbowData);
-    break;
-  case Mode_Type::color_split:
-    color_split(strip, defaultData, colorSplitData);
-    break;
-  default:
-    break;
-  }
+  run_mod();
 
   strip.show();
+}
+
+int main() {
+  setup();
+
+  while(true) loop();
 }
