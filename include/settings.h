@@ -29,6 +29,7 @@ struct ColorSplitData {
 struct BluetoothSett {
   char BLE_Service_UUID[64];
   char BLE_Characteristic_UUID[64];
+  char BLE_Device_to_espr_UUID[64];
 };
 
 struct DeviceInfo {
@@ -45,6 +46,10 @@ struct DeviceInfo {
   RainbowData rainbowData;
   ColorSplitData colorSplitData;
   Mode_Type mode;
+
+  BLEServer* pServer = NULL;
+  BLEService *pService = NULL;
+  BLECharacteristic* pCharacteristic = NULL;
 
 } deviceInfo;
 

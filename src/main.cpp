@@ -31,6 +31,7 @@
 
 #include "Arduino.h"
 #include "SPIFFS.h"
+#include <BluetoothSerial.h>
 
 #include "settings.h"
 
@@ -45,8 +46,6 @@
 
 
 #pragma region Declarations
-BLEServer* pServer = NULL;
-BLECharacteristic* pCharacteristic = NULL;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 uint32_t value = 0;
@@ -117,26 +116,18 @@ void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& d
 class MyServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
     deviceConnected = true;
-    char data[10] = "Ciao";
-    pCharacteristic->setWriteNoResponseProperty(false);
-    pCharacteristic->setValue((uint8_t*)&data, sizeof(data));
-    Serial.println(data);
-    pCharacteristic->notify();
 
-    char buffer[20];
+    deviceInfo.pCharacteristic->setValue((uint8_t*)"Primo dato", sizeof("Primo dato"));
+    Serial.println("Primo dato");
+    deviceInfo.pCharacteristic->notify();
 
-    File file = SPIFFS.open("/settings.json");
-    for (size_t i = 0; file.available() || i<20; i++)
-    {
-      buffer[i] = file.read();
-      if(i == 19) {
-        pCharacteristic->setValue((uint8_t*)&buffer, sizeof(data));
-        i = 0;
-      }
-    }
+    deviceInfo.pCharacteristic->setValue((uint8_t*)"Secondo dato", sizeof("Secondo dato"));
+    Serial.println("Secondo dato");
+    deviceInfo.pCharacteristic->notify();
 
-
-    file.size();
+    deviceInfo.pCharacteristic->setValue((uint8_t*)"Terzo dato", sizeof("Terzo dato"));
+    Serial.println("Terzo dato");
+    deviceInfo.pCharacteristic->notify();
 
     BLEDevice::startAdvertising();
   };
@@ -305,9 +296,6 @@ bool save_data(const char* filename) {
 
   return true;
 }
-
-
-
 
 
 class DeviceCallback: public BLECharacteristicCallbacks {
@@ -480,14 +468,15 @@ void BLE_init() {
   BLEDevice::init("ESP32");
 
   // Create the BLE Server
-  pServer = BLEDevice::createServer();
-  pServer->setCallbacks(new MyServerCallbacks());
+  deviceInfo.pServer = BLEDevice::createServer();
+
+  deviceInfo.pServer->setCallbacks(new MyServerCallbacks());
 
   // Create the BLE Service
-  BLEService *pService = pServer->createService(deviceInfo.bluetoothSett.BLE_Service_UUID);
+  deviceInfo.pService = deviceInfo.pServer->createService(deviceInfo.bluetoothSett.BLE_Service_UUID);
 
   // Create a BLE Characteristic
-  pCharacteristic = pService->createCharacteristic(
+  deviceInfo.pCharacteristic = deviceInfo.pService->createCharacteristic(
                       deviceInfo.bluetoothSett.BLE_Characteristic_UUID,
                       BLECharacteristic::PROPERTY_READ   |
                       BLECharacteristic::PROPERTY_WRITE  |
@@ -496,14 +485,14 @@ void BLE_init() {
                     );
 
 
-  pCharacteristic->setCallbacks(new DeviceCallback());
+  deviceInfo.pCharacteristic->setCallbacks(new DeviceCallback());
 
   // https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
   // Create a BLE Descriptor
-  pCharacteristic->addDescriptor(new BLE2902());
+  deviceInfo.pCharacteristic->addDescriptor(new BLE2902());
 
   // Start the service
-  pService->start();
+  deviceInfo.pService->start();
 
   // Start advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
@@ -548,21 +537,6 @@ void run_mod() {
 }
 
 void loop() {
-  if (deviceConnected) {
-    delay(10); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
-  }
-  if (!deviceConnected && oldDeviceConnected) {
-    delay(500); // give the bluetooth stack the chance to get things ready
-    pServer->startAdvertising(); // restart advertising
-    Serial.println("start advertising");
-    oldDeviceConnected = deviceConnected;
-  }
-  // connecting
-  if (deviceConnected && !oldDeviceConnected) {
-    // do stuff here on connecting
-    oldDeviceConnected = deviceConnected;
-  }
-
   run_mod();
 
   strip.show();
