@@ -116,19 +116,6 @@ void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& d
 class MyServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
     deviceConnected = true;
-
-    deviceInfo.pCharacteristic->setValue((uint8_t*)"Primo dato", sizeof("Primo dato"));
-    Serial.println("Primo dato");
-    deviceInfo.pCharacteristic->notify();
-
-    deviceInfo.pCharacteristic->setValue((uint8_t*)"Secondo dato", sizeof("Secondo dato"));
-    Serial.println("Secondo dato");
-    deviceInfo.pCharacteristic->notify();
-
-    deviceInfo.pCharacteristic->setValue((uint8_t*)"Terzo dato", sizeof("Terzo dato"));
-    Serial.println("Terzo dato");
-    deviceInfo.pCharacteristic->notify();
-
     BLEDevice::startAdvertising();
   };
 
@@ -297,6 +284,24 @@ bool save_data(const char* filename) {
   return true;
 }
 
+void send_data() {
+  Serial.println("Sending Data...");
+  deviceInfo.pCharacteristic->setIndicateProperty(true);
+
+  deviceInfo.pCharacteristic->setValue((uint8_t*)"Primo dato", sizeof("Primo dato"));
+  Serial.println("Primo dato");
+  deviceInfo.pCharacteristic->indicate();
+
+  deviceInfo.pCharacteristic->setValue((uint8_t*)"Secondo dato", sizeof("Secondo dato"));
+  Serial.println("Secondo dato");
+  deviceInfo.pCharacteristic->indicate();
+
+
+  deviceInfo.pCharacteristic->setValue((uint8_t*)"Terzo dato", sizeof("Terzo dato"));
+  Serial.println("Terzo dato");
+  deviceInfo.pCharacteristic->indicate();
+}
+
 
 class DeviceCallback: public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
@@ -304,6 +309,7 @@ class DeviceCallback: public BLECharacteristicCallbacks {
 
     const byte * buffer = (byte*)value.c_str();
     // Serial.println(value.length());
+    Serial.println(String(int(buffer[0])));
 
     switch (buffer[0])
     {
@@ -319,6 +325,10 @@ class DeviceCallback: public BLECharacteristicCallbacks {
     // data-transfer
     case 1:
       data_transfer(&buffer[1]);
+      break;
+
+    case 25:
+      send_data();
       break;
 
     // Error Handling
