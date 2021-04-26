@@ -113,9 +113,47 @@ void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& d
 
 #pragma region CallbackSetMods
 
+void sendSettings() {
+  Serial.println("Sending Settings Data...");
+
+  deviceInfo.pCharacteristic->setWriteNoResponseProperty(false);
+  deviceInfo.pCharacteristic->setReadProperty(true);
+
+    // Open File Settings
+  File file = SPIFFS.open("/settings.json", FILE_READ);
+
+  // Error Checking for reading file
+  if(!file) {
+    Serial.print("Failed to open file for reading");
+    return;
+  } else {
+    Serial.println("File opened");
+  }
+
+  // Initialize Json document for settings
+  DynamicJsonDocument sett(1024);
+  // Error checking
+  DeserializationError error = deserializeJson(sett, file);
+  if(error) Serial.print("Failed to Deserialize.");
+  file.close();
+
+  sett.remove("SERVICE_UUID");
+  sett.remove("CHARACTERISTIC_UUID");
+  String output;
+  serializeJson(sett, output);
+
+  deviceInfo.pCharacteristic->setValue((uint8_t*)output.c_str(), output.length());
+  deviceInfo.pCharacteristic->notify();
+
+  Serial.println("[BLE] Notify");
+}
+
 class MyServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
     deviceConnected = true;
+    Serial.println("Device Conected");
+
+    sendSettings();
     BLEDevice::startAdvertising();
   };
 
@@ -140,6 +178,7 @@ void setDefaultSettings(const byte *val, int firstIndex){
   Serial.println("LedLenght: " + String(deviceInfo.defaultData.ledLenght));
   Serial.println("Brightness: " + String(deviceInfo.defaultData.brightness));
   Serial.println("******************************");
+  strip.show();
 }
 
 void setFixedColorData(const byte *val, int firstIndex){
@@ -284,25 +323,6 @@ bool save_data(const char* filename) {
   return true;
 }
 
-void send_data() {
-  Serial.println("Sending Data...");
-  deviceInfo.pCharacteristic->setIndicateProperty(true);
-
-  deviceInfo.pCharacteristic->setValue((uint8_t*)"Primo dato", sizeof("Primo dato"));
-  Serial.println("Primo dato");
-  deviceInfo.pCharacteristic->indicate();
-
-  deviceInfo.pCharacteristic->setValue((uint8_t*)"Secondo dato", sizeof("Secondo dato"));
-  Serial.println("Secondo dato");
-  deviceInfo.pCharacteristic->indicate();
-
-
-  deviceInfo.pCharacteristic->setValue((uint8_t*)"Terzo dato", sizeof("Terzo dato"));
-  Serial.println("Terzo dato");
-  deviceInfo.pCharacteristic->indicate();
-}
-
-
 class DeviceCallback: public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     std::string value = pCharacteristic->getValue();
@@ -328,7 +348,7 @@ class DeviceCallback: public BLECharacteristicCallbacks {
       break;
 
     case 25:
-      send_data();
+      sendSettings();
       break;
 
     // Error Handling
@@ -510,6 +530,8 @@ void BLE_init() {
   pAdvertising->setMinPreferred(0x0);  // set value to 0x00 to not advertise this parameter
   BLEDevice::startAdvertising();
   Serial.println("Waiting a client connection to notify...");
+
+  deviceInfo.pCharacteristic->setValue(std::string("CIao a tutti"));
 }
 
 
