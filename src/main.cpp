@@ -35,14 +35,8 @@
 
 #include "settings.h"
 
-
-
-
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
-
-
-
 
 
 #pragma region Declarations
@@ -53,8 +47,6 @@ Adafruit_NeoPixel led(1, int(deviceInfo.led_pin), NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel strip(30, int(deviceInfo.strip_pin), NEO_GRB + NEO_KHZ800);
 
 #pragma endregion Declarations
-
-
 
 // Loop Functions
 #pragma region LoopFunctions
@@ -114,6 +106,7 @@ void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& d
 #pragma region CallbackSetMods
 
 void sendSettings() {
+  // TODO: Update function for sending data to the right location.
   Serial.println("Sending Settings Data...");
 
   deviceInfo.pCharacteristic->setWriteNoResponseProperty(false);
@@ -148,7 +141,7 @@ void sendSettings() {
   Serial.println("[BLE] Notify");
 }
 
-class MyServerCallbacks: public BLEServerCallbacks {
+class StripServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
     deviceConnected = true;
     Serial.println("Device Conected");
@@ -162,30 +155,39 @@ class MyServerCallbacks: public BLEServerCallbacks {
   }
 };
 
-void setDefaultSettings(const byte *val, int firstIndex){
-  int ledLenghtIndex = firstIndex;
-  if(val[ledLenghtIndex]) {
-    deviceInfo.defaultData.ledLenght = val[ledLenghtIndex];
+void setDefaultSettings(const byte *buffer){
+  Serial.println("[STRIP] - setDefaultSettings - Called");
+  int ledLenghtIndex = 0;
+  if(buffer[ledLenghtIndex] > 0) {
     strip.clear();
+    strip.show();
+    deviceInfo.defaultData.ledLenght = buffer[ledLenghtIndex];
     strip.updateLength(deviceInfo.defaultData.ledLenght);
+    strip.show();
+  } else {
+    Serial.println("[STRIP] - setDefaultSettings - ERROR - Recived negative lenght");
   }
+  Serial.println("[STRIP] - setDefaultSettings - Strip Lenght updated");
 
-  int brightnessIndex = firstIndex + 1;
+  int brightnessIndex = ledLenghtIndex++;
+  deviceInfo.defaultData.brightness = buffer[brightnessIndex];
   strip.setBrightness(deviceInfo.defaultData.brightness);
+  strip.show();
+  Serial.println("[STRIP] - setDefaultSettings - Strip brightess Updated");
 
-  deviceInfo.defaultData.brightness = val[brightnessIndex];
   Serial.println("************Default***********");
   Serial.println("LedLenght: " + String(deviceInfo.defaultData.ledLenght));
   Serial.println("Brightness: " + String(deviceInfo.defaultData.brightness));
   Serial.println("******************************");
-  strip.show();
 }
 
-void setFixedColorData(const byte *val, int firstIndex){
-  int colorIndex = firstIndex;
-  deviceInfo.fixedColorData.color.r = val[colorIndex];
-  deviceInfo.fixedColorData.color.g = val[colorIndex + 1];
-  deviceInfo.fixedColorData.color.b = val[colorIndex + 2];
+void setFixedColorData(const byte *buffer){
+  Serial.println("[STRIP] - setFixedColorData - Called");
+  int index = 0;
+  deviceInfo.fixedColorData.color.r = buffer[index++];
+  deviceInfo.fixedColorData.color.g = buffer[index++];
+  deviceInfo.fixedColorData.color.b = buffer[index++];
+  Serial.println("[STRIP] - setFixedColorData - color updated");
 
 
   Serial.println("********FixedColor Mod********");
@@ -198,29 +200,33 @@ void setFixedColorData(const byte *val, int firstIndex){
   Serial.println("******************************");
 }
 
-void setRainbowData(const byte *val, int firstIndex) {
-  int velocityIndex = firstIndex;
-  deviceInfo.rainbowData.velocity = val[velocityIndex];
+void setRainbowData(const byte *buffer) {
+  Serial.println("[STRIP] - setRainbowData - Called");
+
+  int velocityIndex = 0;
+  deviceInfo.rainbowData.velocity = buffer[velocityIndex];
 
   Serial.println("**********Rainbow Mod*********");
   Serial.println("Velocity: " + String(deviceInfo.rainbowData.velocity));
   Serial.println("******************************");
 }
 
-void setColorSplitData(const byte *val, int index) {
-  int endFirstLedSplitIndex = index;
-  deviceInfo.colorSplitData.endFirstLedSplit = val[endFirstLedSplitIndex];
+void setColorSplitData(const byte *buffer) {
+  Serial.println("[STRIP] - setColorSplitData - Called");
+  int index = 0;
 
-  int color1Index = index + 1;
-  deviceInfo.colorSplitData.color1.r = val[color1Index];
-  deviceInfo.colorSplitData.color1.g = val[color1Index + 1];
-  deviceInfo.colorSplitData.color1.b = val[color1Index + 2];
+  deviceInfo.colorSplitData.endFirstLedSplit = buffer[index++];
+  Serial.println("[STRIP] - setFixedColorData - endFirstLedSplit updated");
 
+  deviceInfo.colorSplitData.color1.r = buffer[index++];
+  deviceInfo.colorSplitData.color1.g = buffer[index++];
+  deviceInfo.colorSplitData.color1.b = buffer[index++];
+  Serial.println("[STRIP] - setFixedColorData - color1 updated");
 
-  int color2Index = index + 4;
-  deviceInfo.colorSplitData.color2.r = val[color2Index];
-  deviceInfo.colorSplitData.color2.g = val[color2Index + 1];
-  deviceInfo.colorSplitData.color2.b = val[color2Index + 2];
+  deviceInfo.colorSplitData.color2.r = buffer[index++];
+  deviceInfo.colorSplitData.color2.g = buffer[index++];
+  deviceInfo.colorSplitData.color2.b = buffer[index++];
+  Serial.println("[STRIP] - setFixedColorData - color2 updated");
 
   Serial.println("********ColorSplit Mod********");
   Serial.println("FirstSplitLenght: " + String(deviceInfo.colorSplitData.endFirstLedSplit));
@@ -239,27 +245,27 @@ void setColorSplitData(const byte *val, int index) {
   Serial.println("******************************");
 }
 
-#pragma endregion CallbackSetMods
+void setActiveMode(const byte* buffer) {
+  Serial.println("[STRIP] - setActiveMode - Called");
+  switch (buffer[0]) {
 
-
-void data_transfer(const byte* data) {
-  switch (data[0]) {
-  case 0:
-    setDefaultSettings(data, 1);
-    break;
   case (int)Mode_Type::fixed_color:
-    setFixedColorData(data, 1);
     deviceInfo.mode = Mode_Type::fixed_color;
+    Serial.println("[STRIP] - setActiveMode - Mode_Type::fixed_color Active");
     break;
+
   case (int)Mode_Type::rainbow:
-    setRainbowData(data, 1);
     deviceInfo.mode = Mode_Type::rainbow;
+    Serial.println("[STRIP] - setActiveMode - Mode_Type::rainbow Active");
     break;
+
   case (int)Mode_Type::color_split:
-    setColorSplitData(data, 1);
     deviceInfo.mode = Mode_Type::color_split;
+    Serial.println("[STRIP] - setActiveMode - Mode_Type::color_split Active");
     break;
+
   default:
+    Serial.println("[STRIP] - setActiveMode - ERROR - Recived another value: " + String((int)buffer[0]));
     break;
   }
 }
@@ -323,43 +329,7 @@ bool save_data(const char* filename) {
   return true;
 }
 
-class DeviceCallback: public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic) {
-    std::string value = pCharacteristic->getValue();
-
-    const byte * buffer = (byte*)value.c_str();
-    // Serial.println(value.length());
-    Serial.println(String(int(buffer[0])));
-
-    switch (buffer[0])
-    {
-    // Save Data
-    case 0:
-      if(!save_data("/settings.json")) {
-        Serial.println("Error: Data Not Saved");
-      } else {
-        Serial.println("Data Saved");
-      }
-      break;
-
-    // data-transfer
-    case 1:
-      data_transfer(&buffer[1]);
-      break;
-
-    case 25:
-      sendSettings();
-      break;
-
-    // Error Handling
-    default:
-      Serial.println("Error Buffer, Recived: " + String((int)buffer[0]));
-      break;
-    }
-    delay(3);
-  }
-};
-
+#pragma endregion CallbackSetMods
 
 bool SPIFFS_init() {
   if(!SPIFFS.begin(true)){
@@ -368,7 +338,6 @@ bool SPIFFS_init() {
   }
   return true;
 }
-
 
 void setJsonSettingsData() {
   // Initialize SPIFFS
@@ -398,31 +367,6 @@ void setJsonSettingsData() {
   //-------- retrive settings --------//
 
   Serial.println("Starting Retriving");
-
-  // Device ID
-  strlcpy(
-    deviceInfo.id,
-    sett["id_device"] | "ID_NOT_FOUND",
-    sizeof(deviceInfo.id)
-  );
-
-  Serial.println("id_device Retrived");
-
-  // SERVICE_UUID
-  strlcpy(
-    deviceInfo.bluetoothSett.BLE_Service_UUID,
-    sett["SERVICE_UUID"] | "example.com",
-    sizeof(deviceInfo.bluetoothSett.BLE_Service_UUID)
-  );
-  Serial.println("Service_UUID: " + String(deviceInfo.bluetoothSett.BLE_Service_UUID));
-
-  // CHARACTERISTIC_UUID
-  strlcpy(
-    deviceInfo.bluetoothSett.BLE_Characteristic_UUID,
-    sett["CHARACTERISTIC_UUID"] | "example.com",
-    sizeof(deviceInfo.bluetoothSett.BLE_Characteristic_UUID)
-  );
-  Serial.println("Characteristic_UUID: " + String(deviceInfo.bluetoothSett.BLE_Characteristic_UUID));
 
   // DefaultData
   deviceInfo.defaultData.ledLenght     = sett["DefaultData"]["ledLenght"];
@@ -490,6 +434,89 @@ void setJsonSettingsData() {
   Serial.println(String((int)sett["mode"]));
 }
 
+#pragma region Callbacks
+//----- Callbacks -----//
+class blecDefaultDataCallback: public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    Serial.println("[BLE] - blecDefaultDataCallback - Called Callback");
+    std::string value = pCharacteristic->getValue();
+    const byte* buffer = (byte*)value.c_str();
+
+    setDefaultSettings(buffer);
+    Serial.println("[BLE] - blecDefaultDataCallback - End Callback");
+  }
+};
+
+class blecFixedColorDataCallback: public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    Serial.println("[BLE] - blecFixedColorDataCallback - Called Callback");
+    std::string value = pCharacteristic->getValue();
+    const byte* buffer = (byte*)value.c_str();
+
+    setFixedColorData(buffer);
+
+    Serial.println("[BLE] - blecFixedColorDataCallback - End Callback");
+  }
+};
+
+class blecRainbowDataCallback: public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    Serial.println("[BLE] - blecRainbowDataCallback - Called Callback");
+    std::string value = pCharacteristic->getValue();
+    const byte* buffer = (byte*)value.c_str();
+
+    setRainbowData(buffer);
+
+    Serial.println("[BLE] - blecRainbowDataCallback - End Callback");
+  }
+};
+
+class blecColorSplitDataCallback: public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    Serial.println("[BLE] - blecColorSplitDataCallback - Called Callback");
+    std::string value = pCharacteristic->getValue();
+    const byte* buffer = (byte*)value.c_str();
+
+    setColorSplitData(buffer);
+
+    Serial.println("[BLE] - blecRainbowDataCallback - End Callback");
+  }
+};
+
+class blecActiveModeCallback: public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    Serial.println("[BLE] - blecActiveModeCallback - Called Callback");
+    std::string value = pCharacteristic->getValue();
+
+    const byte* buffer = (byte*)value.c_str();
+
+    Serial.println("[BLE] - blecActiveModeCallback - End Callback");
+  }
+};
+
+class blecSaveSettingsCallback: public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    Serial.println("[BLE] - blecSaveSettingsCallback - Called Callback");
+    std::string value = pCharacteristic->getValue();
+
+    const byte * buffer = (byte*)value.c_str();
+
+    // if there is a "1" then save the data
+    if(buffer[0] == true) {
+      if(!save_data("/settings.json")) {
+        Serial.println("[BLE] - blecSaveSettingsCallback - Error: Data Not Saved");
+      } else {
+        Serial.println("[BLE] - blecSaveSettingsCallback - Data Saved");
+      }
+    } else {
+      Serial.println("[BLE] - blecSaveSettingsCallback - Error: buffer data");
+      Serial.println("[BLE] - blecSaveSettingsCallback - Error: received " + String((int)buffer[0]));
+    }
+
+  }
+};
+#pragma endregion Callbacks
+
 
 void BLE_init() {
   //-------- Initialize BLE Operations --------//
@@ -498,40 +525,103 @@ void BLE_init() {
   BLEDevice::init("ESP32");
 
   // Create the BLE Server
-  deviceInfo.pServer = BLEDevice::createServer();
+  deviceInfo.bleSStripServer = BLEDevice::createServer();
 
-  deviceInfo.pServer->setCallbacks(new MyServerCallbacks());
+  // Set Server Callback
+  deviceInfo.bleSStripServer->setCallbacks(new StripServerCallbacks());
 
   // Create the BLE Service
-  deviceInfo.pService = deviceInfo.pServer->createService(deviceInfo.bluetoothSett.BLE_Service_UUID);
+  deviceInfo.blesService = deviceInfo.bleSStripServer->createService(deviceInfo.bluetoothSett.BLE_Service_UUID);
 
-  // Create a BLE Characteristic
-  deviceInfo.pCharacteristic = deviceInfo.pService->createCharacteristic(
-                      deviceInfo.bluetoothSett.BLE_Characteristic_UUID,
+  //----- Create a BLE Characteristics -----//
+  // blecDefaultData Characteristic
+  deviceInfo.blecDefaultData = deviceInfo.blesService->createCharacteristic(
+                      deviceInfo.bluetoothSett.BLE_DefaultData_UUID,
                       BLECharacteristic::PROPERTY_READ   |
                       BLECharacteristic::PROPERTY_WRITE  |
                       BLECharacteristic::PROPERTY_NOTIFY |
                       BLECharacteristic::PROPERTY_INDICATE
                     );
 
+  deviceInfo.blecDefaultData->setCallbacks(new blecDefaultDataCallback());
+  deviceInfo.blecDefaultData->addDescriptor(new BLE2902());
 
-  deviceInfo.pCharacteristic->setCallbacks(new DeviceCallback());
 
-  // https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
-  // Create a BLE Descriptor
-  deviceInfo.pCharacteristic->addDescriptor(new BLE2902());
+  // blecFixedColorData Characteristic
+  deviceInfo.blecFixedColorData = deviceInfo.blesService->createCharacteristic(
+                      deviceInfo.bluetoothSett.BLE_FixedColorData_UUID,
+                      BLECharacteristic::PROPERTY_READ   |
+                      BLECharacteristic::PROPERTY_WRITE  |
+                      BLECharacteristic::PROPERTY_NOTIFY |
+                      BLECharacteristic::PROPERTY_INDICATE
+                    );
+
+  deviceInfo.blecFixedColorData->setCallbacks(new blecFixedColorDataCallback());
+  deviceInfo.blecFixedColorData->addDescriptor(new BLE2902());
+
+
+
+  // blecRainbowData Characteristic
+  deviceInfo.blecRainbowData = deviceInfo.blesService->createCharacteristic(
+                      deviceInfo.bluetoothSett.BLE_RainbowData_UUID,
+                      BLECharacteristic::PROPERTY_READ   |
+                      BLECharacteristic::PROPERTY_WRITE  |
+                      BLECharacteristic::PROPERTY_NOTIFY |
+                      BLECharacteristic::PROPERTY_INDICATE
+                    );
+
+  deviceInfo.blecRainbowData->setCallbacks(new blecRainbowDataCallback());
+  deviceInfo.blecRainbowData->addDescriptor(new BLE2902());
+
+
+
+  // blecColorSplitData Characteristic
+  deviceInfo.blecColorSplitData = deviceInfo.blesService->createCharacteristic(
+                      deviceInfo.bluetoothSett.BLE_ColorSplitData_UUID,
+                      BLECharacteristic::PROPERTY_READ   |
+                      BLECharacteristic::PROPERTY_WRITE  |
+                      BLECharacteristic::PROPERTY_NOTIFY |
+                      BLECharacteristic::PROPERTY_INDICATE
+                    );
+
+  deviceInfo.blecColorSplitData->setCallbacks(new blecColorSplitDataCallback());
+  deviceInfo.blecColorSplitData->addDescriptor(new BLE2902());
+
+
+  // blecActiveMode Characteristic
+  deviceInfo.blecActiveMode = deviceInfo.blesService->createCharacteristic(
+                      deviceInfo.bluetoothSett.BLE_ActiveMode_UUID,
+                      BLECharacteristic::PROPERTY_READ   |
+                      BLECharacteristic::PROPERTY_WRITE  |
+                      BLECharacteristic::PROPERTY_NOTIFY |
+                      BLECharacteristic::PROPERTY_INDICATE
+                    );
+
+  deviceInfo.blecActiveMode->setCallbacks(new blecActiveModeCallback());
+  deviceInfo.blecActiveMode->addDescriptor(new BLE2902());
+
+
+  // blecSaveSettings Characteristic
+  deviceInfo.blecSaveSettings = deviceInfo.blesService->createCharacteristic(
+                      deviceInfo.bluetoothSett.BLE_SaveSettings_UUID,
+                      BLECharacteristic::PROPERTY_READ   |
+                      BLECharacteristic::PROPERTY_WRITE  |
+                      BLECharacteristic::PROPERTY_NOTIFY |
+                      BLECharacteristic::PROPERTY_INDICATE
+                    );
+
+  deviceInfo.blecSaveSettings->setCallbacks(new blecSaveSettingsCallback());
+  deviceInfo.blecSaveSettings->addDescriptor(new BLE2902());
 
   // Start the service
-  deviceInfo.pService->start();
+  deviceInfo.blesService->start();
 
   // Start advertising
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  pAdvertising->addServiceUUID(deviceInfo.bluetoothSett.BLE_Service_UUID);
-  pAdvertising->setMinPreferred(0x0);  // set value to 0x00 to not advertise this parameter
+  deviceInfo.bleaAdvertising = BLEDevice::getAdvertising();
+  deviceInfo.bleaAdvertising->addServiceUUID(deviceInfo.bluetoothSett.BLE_Service_UUID);
+  deviceInfo.bleaAdvertising->setMinPreferred(0x0);  // set value to 0x00 to not advertise this parameter
   BLEDevice::startAdvertising();
   Serial.println("Waiting a client connection to notify...");
-
-  deviceInfo.pCharacteristic->setValue(std::string("CIao a tutti"));
 }
 
 

@@ -27,17 +27,21 @@ struct ColorSplitData {
 };
 
 struct BluetoothSett {
-  char BLE_Service_UUID[64];
-  char BLE_Characteristic_UUID[64];
-  char BLE_Device_to_espr_UUID[64];
+  char BLE_Service_UUID[37] = "b722533f-8e22-4678-be87-bb6e6c237860";
+
+  char BLE_DefaultData_UUID[37] = "9c1389dd-0a31-4355-ad5d-1bc47a11c7e2";
+  char BLE_FixedColorData_UUID[37] = "2135f2b6-0ce2-47f3-bc2f-120e454be7e0";
+  char BLE_RainbowData_UUID[37] = "e1ee97c2-f08d-451b-92e6-f52c508c40af";
+  char BLE_ColorSplitData_UUID[37] = "47b31a46-19d1-407c-b126-f6c1561bb23c";
+  char BLE_ActiveMode_UUID[37] = "6e19f003-b524-4852-a57c-63a6529c3a12";
+
+  char BLE_SaveSettings_UUID[37] = "2c203874-7ad6-4230-bc5c-09e2aa7a382f";
 };
 
 struct DeviceInfo {
   const byte led_pin = 13;
   const byte strip_pin = 14;
   const byte push_button_pin = 16;
-
-  char id[64];
 
   BluetoothSett bluetoothSett;
 
@@ -47,9 +51,20 @@ struct DeviceInfo {
   ColorSplitData colorSplitData;
   Mode_Type mode;
 
-  BLEServer* pServer = NULL;
-  BLEService *pService = NULL;
-  BLECharacteristic* pCharacteristic = NULL;
+  // BLE
+  BLEServer* bleSStripServer = NULL;
+  BLEService* blesService = NULL;
+  BLEAdvertising* bleaAdvertising = NULL;
+
+  BLECharacteristic* blecDefaultData = NULL;
+  BLECharacteristic* blecFixedColorData = NULL;
+  BLECharacteristic* blecRainbowData = NULL;
+  BLECharacteristic* blecColorSplitData = NULL;
+  BLECharacteristic* blecActiveMode = NULL;
+  
+  BLECharacteristic* blecSaveSettings = NULL;
+
+
 
 } deviceInfo;
 
