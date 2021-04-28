@@ -107,38 +107,84 @@ void color_split(Adafruit_NeoPixel & strip, DefaultData dData, ColorSplitData& d
 
 void sendSettings() {
   // TODO: Update function for sending data to the right location.
-  Serial.println("Sending Settings Data...");
+  Serial.println("[STRIP] - sendSettings - Sending Settings to Phone");
+  byte* data;
 
-  deviceInfo.pCharacteristic->setWriteNoResponseProperty(false);
-  deviceInfo.pCharacteristic->setReadProperty(true);
+  // blecDefaultData
+  byte defaultData[] = {deviceInfo.defaultData.ledLenght, deviceInfo.defaultData.brightness};
+  deviceInfo.blecDefaultData->setValue(defaultData, sizeof(DefaultData));
+  deviceInfo.blecDefaultData->indicate();
+  data = deviceInfo.blecDefaultData->getData();
+  Serial.println(
+    "[STRIP] - sendSettings - blecFixedColorData - Data: " + 
+    String(int(data[0])) + "," +
+    String(int(data[1]))
+  );
 
-    // Open File Settings
-  File file = SPIFFS.open("/settings.json", FILE_READ);
+  // blecFixedColorData
+  byte fixedColorData[] = {
+    deviceInfo.fixedColorData.color.r,
+    deviceInfo.fixedColorData.color.g,
+    deviceInfo.fixedColorData.color.b,
+  };
+  deviceInfo.blecFixedColorData->setValue(fixedColorData, sizeof(fixedColorData));
+  deviceInfo.blecFixedColorData->indicate();
+  data = deviceInfo.blecFixedColorData->getData();
+  Serial.println(
+    "[STRIP] - sendSettings - blecFixedColorData - Data: " + 
+    String(int(data[0])) + "," +
+    String(int(data[1]))
+  );
 
-  // Error Checking for reading file
-  if(!file) {
-    Serial.print("Failed to open file for reading");
-    return;
-  } else {
-    Serial.println("File opened");
-  }
+  // blecRainbowData
+  byte rainbowData[] = {
+    deviceInfo.rainbowData.velocity,
+  };
+  deviceInfo.blecRainbowData->setValue(rainbowData, sizeof(rainbowData));
+  deviceInfo.blecRainbowData->indicate();
+  data = deviceInfo.blecRainbowData->getData();
+  Serial.println(
+    "[STRIP] - sendSettings - blecRainbowData - Data: " + 
+    String(int(data[0]))
+  );
 
-  // Initialize Json document for settings
-  DynamicJsonDocument sett(1024);
-  // Error checking
-  DeserializationError error = deserializeJson(sett, file);
-  if(error) Serial.print("Failed to Deserialize.");
-  file.close();
+    // blecFixedColorData
+  byte colorSplitData[] = {
+    deviceInfo.colorSplitData.endFirstLedSplit,
+    deviceInfo.colorSplitData.color1.r,
+    deviceInfo.colorSplitData.color1.g,
+    deviceInfo.colorSplitData.color1.b,
+    deviceInfo.colorSplitData.color2.r,
+    deviceInfo.colorSplitData.color2.g,
+    deviceInfo.colorSplitData.color2.b,
+  };
+  deviceInfo.blecColorSplitData->setValue(colorSplitData, sizeof(colorSplitData));
+  deviceInfo.blecColorSplitData->indicate();
+  data = deviceInfo.blecColorSplitData->getData();
+  Serial.println(
+    "[STRIP] - sendSettings - blecColorSplitData - Data: " + 
+    String(int(data[0])) + "," +
+    String(int(data[1])) + "," +
+    String(int(data[2])) + "," +
+    String(int(data[3])) + "," +
+    String(int(data[4])) + "," +
+    String(int(data[5])) + "," +
+    String(int(data[6]))
+  );
 
-  sett.remove("SERVICE_UUID");
-  sett.remove("CHARACTERISTIC_UUID");
-  String output;
-  serializeJson(sett, output);
+    // blecRainbowData
+  byte blecActiveMode[] = {
+    byte(deviceInfo.activeMode),
+  };
+  deviceInfo.blecActiveMode->setValue(blecActiveMode, sizeof(blecActiveMode));
+  deviceInfo.blecActiveMode->indicate();
+  data = deviceInfo.blecActiveMode->getData();
+  Serial.println(
+    "[STRIP] - sendSettings - blecActiveMode - Data: " + 
+    String(int(data[0]))
+  );
 
-  deviceInfo.pCharacteristic->setValue((uint8_t*)output.c_str(), output.length());
-  deviceInfo.pCharacteristic->notify();
-
-  Serial.println("[BLE] Notify");
+  Serial.println("[STRIP] - sendSettings - Sending Settings Done");
 }
 
 class StripServerCallbacks: public BLEServerCallbacks {
@@ -250,17 +296,17 @@ void setActiveMode(const byte* buffer) {
   switch (buffer[0]) {
 
   case (int)Mode_Type::fixed_color:
-    deviceInfo.mode = Mode_Type::fixed_color;
+    deviceInfo.activeMode = Mode_Type::fixed_color;
     Serial.println("[STRIP] - setActiveMode - Mode_Type::fixed_color Active");
     break;
 
   case (int)Mode_Type::rainbow:
-    deviceInfo.mode = Mode_Type::rainbow;
+    deviceInfo.activeMode = Mode_Type::rainbow;
     Serial.println("[STRIP] - setActiveMode - Mode_Type::rainbow Active");
     break;
 
   case (int)Mode_Type::color_split:
-    deviceInfo.mode = Mode_Type::color_split;
+    deviceInfo.activeMode = Mode_Type::color_split;
     Serial.println("[STRIP] - setActiveMode - Mode_Type::color_split Active");
     break;
 
@@ -305,9 +351,9 @@ bool save_data(const char* filename) {
   sett["ColorSplitData"]["color2"][1] = deviceInfo.colorSplitData.color1.g;
   sett["ColorSplitData"]["color2"][2] = deviceInfo.colorSplitData.color1.b;
 
-  Serial.println(String((int)deviceInfo.mode));
+  Serial.println(String((int)deviceInfo.activeMode));
 
-  sett["mode"] = (byte)deviceInfo.mode;
+  sett["mode"] = (byte)deviceInfo.activeMode;
 
   Serial.println(String((int)sett["FixedColorData"]["color"][0]));
   Serial.println(String((int)sett["FixedColorData"]["color"][1]));
@@ -419,16 +465,16 @@ void setJsonSettingsData() {
   switch ((int)sett["mode"])
   {
   case (int)Mode_Type::fixed_color:
-    deviceInfo.mode = Mode_Type::fixed_color;
+    deviceInfo.activeMode = Mode_Type::fixed_color;
     break;
   case (int)Mode_Type::rainbow:
-    deviceInfo.mode = Mode_Type::rainbow;
+    deviceInfo.activeMode = Mode_Type::rainbow;
     break;
   case (int)Mode_Type::color_split:
-    deviceInfo.mode = Mode_Type::color_split;
+    deviceInfo.activeMode = Mode_Type::color_split;
     break;
   default:
-    deviceInfo.mode = Mode_Type::fixed_color;
+    deviceInfo.activeMode = Mode_Type::fixed_color;
     break;
   }
   Serial.println(String((int)sett["mode"]));
@@ -643,7 +689,7 @@ void setup() {
 }
 
 void run_mod() {
-  switch (deviceInfo.mode) {
+  switch (deviceInfo.activeMode) {
   case Mode_Type::fixed_color:
     fixed_color(strip, deviceInfo.defaultData, deviceInfo.fixedColorData);
     break;

@@ -49,7 +49,7 @@ struct DeviceInfo {
   FixedColorData fixedColorData;
   RainbowData rainbowData;
   ColorSplitData colorSplitData;
-  Mode_Type mode;
+  Mode_Type activeMode;
 
   // BLE
   BLEServer* bleSStripServer = NULL;
