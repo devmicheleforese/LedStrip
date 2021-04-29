@@ -31,7 +31,6 @@
 
 #include "Arduino.h"
 #include "SPIFFS.h"
-#include <BluetoothSerial.h>
 
 #include "settings.h"
 
@@ -113,13 +112,13 @@ void sendSettings() {
   // blecDefaultData
   byte defaultData[] = {deviceInfo.defaultData.ledLenght, deviceInfo.defaultData.brightness};
   deviceInfo.blecDefaultData->setValue(defaultData, sizeof(DefaultData));
-  deviceInfo.blecDefaultData->indicate();
-  data = deviceInfo.blecDefaultData->getData();
-  Serial.println(
-    "[STRIP] - sendSettings - blecFixedColorData - Data: " + 
-    String(int(data[0])) + "," +
-    String(int(data[1]))
-  );
+  // deviceInfo.blecDefaultData->notify();
+  // data = deviceInfo.blecDefaultData->getData();
+  // Serial.println(
+  //   "[STRIP] - sendSettings - blecDefaultData - Data: " + 
+  //   String(int(data[0])) + "," +
+  //   String(int(data[1]))
+  // );
 
   // blecFixedColorData
   byte fixedColorData[] = {
@@ -558,7 +557,26 @@ class blecSaveSettingsCallback: public BLECharacteristicCallbacks {
       Serial.println("[BLE] - blecSaveSettingsCallback - Error: buffer data");
       Serial.println("[BLE] - blecSaveSettingsCallback - Error: received " + String((int)buffer[0]));
     }
+    Serial.println("[BLE] - blecSaveSettingsCallback - End Callback");
+  }
+};
 
+class blecSendDataCallBack: public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    Serial.println("[BLE] - blecSendDataCallBack - Called Callback");
+    std::string value = pCharacteristic->getValue();
+
+    const byte * buffer = (byte*)value.c_str();
+
+    // if there is a "1" then save the data
+    if(buffer[0] == true) {
+      sendSettings();
+      Serial.println("[BLE] - blecSendDataCallBack - Data Send");
+    } else {
+      Serial.println("[BLE] - blecSendDataCallBack - Error: buffer data");
+      Serial.println("[BLE] - blecSendDataCallBack - Error: received " + String((int)buffer[0]));
+    }
+    Serial.println("[BLE] - blecSendDataCallBack - End Callback");
   }
 };
 #pragma endregion Callbacks
@@ -643,12 +661,18 @@ void BLE_init() {
                       BLECharacteristic::PROPERTY_INDICATE
                     );
 
+  if(deviceInfo.blecActiveMode == NULL)
+    Serial.println("blecActiveMode NULL");
+
   deviceInfo.blecActiveMode->setCallbacks(new blecActiveModeCallback());
   deviceInfo.blecActiveMode->addDescriptor(new BLE2902());
 
 
-  // blecSaveSettings Characteristic
-  deviceInfo.blecSaveSettings = deviceInfo.blesService->createCharacteristic(
+  // blesServiceSettings SERVICE
+  deviceInfo.blesServiceSettings = deviceInfo.bleSStripServer->createService(deviceInfo.bluetoothSett.BLE_ServiceSettings_UUID);
+
+    // blecSaveSettings Characteristic
+  deviceInfo.blecSaveSettings = deviceInfo.blesServiceSettings->createCharacteristic(
                       deviceInfo.bluetoothSett.BLE_SaveSettings_UUID,
                       BLECharacteristic::PROPERTY_READ   |
                       BLECharacteristic::PROPERTY_WRITE  |
@@ -656,15 +680,37 @@ void BLE_init() {
                       BLECharacteristic::PROPERTY_INDICATE
                     );
 
+  if(deviceInfo.blecSaveSettings == NULL)
+    Serial.println("blecSaveSettings NULL");
+
   deviceInfo.blecSaveSettings->setCallbacks(new blecSaveSettingsCallback());
   deviceInfo.blecSaveSettings->addDescriptor(new BLE2902());
 
+  // blecSendData Characteristic
+  deviceInfo.blecSendData = deviceInfo.blesServiceSettings->createCharacteristic(
+                      deviceInfo.bluetoothSett.BLE_SendData_UUID,
+                      BLECharacteristic::PROPERTY_READ   |
+                      BLECharacteristic::PROPERTY_WRITE  |
+                      BLECharacteristic::PROPERTY_NOTIFY |
+                      BLECharacteristic::PROPERTY_INDICATE
+                    );
+
+  if(deviceInfo.blecSendData == NULL)
+    Serial.println("blecSendData NULL");
+
+  deviceInfo.blecSendData->setCallbacks(new blecSendDataCallBack());
+  deviceInfo.blecSendData->addDescriptor(new BLE2902());
+
+
   // Start the service
   deviceInfo.blesService->start();
+  deviceInfo.blesServiceSettings->start();
+
 
   // Start advertising
   deviceInfo.bleaAdvertising = BLEDevice::getAdvertising();
   deviceInfo.bleaAdvertising->addServiceUUID(deviceInfo.bluetoothSett.BLE_Service_UUID);
+  deviceInfo.bleaAdvertising->addServiceUUID(deviceInfo.bluetoothSett.BLE_ServiceSettings_UUID);
   deviceInfo.bleaAdvertising->setMinPreferred(0x0);  // set value to 0x00 to not advertise this parameter
   BLEDevice::startAdvertising();
   Serial.println("Waiting a client connection to notify...");
@@ -705,7 +751,12 @@ void run_mod() {
 }
 
 void loop() {
+  if(deviceInfo.SerialBT.available()) {
+    deviceInfo.SerialBT.write(Serial)
+  }
   run_mod();
+
+
 
   strip.show();
 }

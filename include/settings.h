@@ -35,7 +35,10 @@ struct BluetoothSett {
   char BLE_ColorSplitData_UUID[37] = "47b31a46-19d1-407c-b126-f6c1561bb23c";
   char BLE_ActiveMode_UUID[37] = "6e19f003-b524-4852-a57c-63a6529c3a12";
 
+  char BLE_ServiceSettings_UUID[37] = "f349aa66-7acf-41c6-b9a4-ce34ef3f54e6";
+
   char BLE_SaveSettings_UUID[37] = "2c203874-7ad6-4230-bc5c-09e2aa7a382f";
+  char BLE_SendData_UUID[37] = "0c098b94-87d6-4cfa-b649-7ad5debb4409";
 };
 
 struct DeviceInfo {
@@ -61,10 +64,14 @@ struct DeviceInfo {
   BLECharacteristic* blecRainbowData = NULL;
   BLECharacteristic* blecColorSplitData = NULL;
   BLECharacteristic* blecActiveMode = NULL;
+
+  BLEService* blesServiceSettings = NULL;
   
   BLECharacteristic* blecSaveSettings = NULL;
+  BLECharacteristic* blecSendData = NULL;
 
 
+  BluetoothSerial SerialBT;
 
 } deviceInfo;
 
