@@ -70,8 +70,4 @@ struct DeviceInfo {
   BLECharacteristic* blecSaveSettings = NULL;
   BLECharacteristic* blecSendData = NULL;
 
-
-  BluetoothSerial SerialBT;
-
 } deviceInfo;
-
