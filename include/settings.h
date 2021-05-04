@@ -39,6 +39,7 @@ struct BluetoothSett {
 
   char BLE_SaveSettings_UUID[37] = "2c203874-7ad6-4230-bc5c-09e2aa7a382f";
   char BLE_SendData_UUID[37] = "0c098b94-87d6-4cfa-b649-7ad5debb4409";
+  char BLE_Notification_UUID[37] = "f5964ee2-01fb-4e94-8843-fdbeb3b3f723";
 };
 
 struct DeviceInfo {
@@ -55,19 +56,21 @@ struct DeviceInfo {
   Mode_Type activeMode;
 
   // BLE
-  BLEServer* bleSStripServer = NULL;
-  BLEService* blesService = NULL;
-  BLEAdvertising* bleaAdvertising = NULL;
-
-  BLECharacteristic* blecDefaultData = NULL;
-  BLECharacteristic* blecFixedColorData = NULL;
-  BLECharacteristic* blecRainbowData = NULL;
-  BLECharacteristic* blecColorSplitData = NULL;
-  BLECharacteristic* blecActiveMode = NULL;
-
-  BLEService* blesServiceSettings = NULL;
+  BLEServer* bleSStripServer = nullptr;
   
-  BLECharacteristic* blecSaveSettings = NULL;
-  BLECharacteristic* blecSendData = NULL;
+  BLEService* blesService = nullptr;
+  BLEAdvertising* bleaAdvertising = nullptr;
+
+  BLECharacteristic* blecDefaultData = nullptr;
+  BLECharacteristic* blecFixedColorData = nullptr;
+  BLECharacteristic* blecRainbowData = nullptr;
+  BLECharacteristic* blecColorSplitData = nullptr;
+  BLECharacteristic* blecActiveMode = nullptr;
+
+  BLEService* blesServiceSettings = nullptr;
+  
+  BLECharacteristic* blecSaveSettings = nullptr;
+  BLECharacteristic* blecSendData = nullptr;
+  BLECharacteristic* blecNotification = nullptr;
 
 } deviceInfo;

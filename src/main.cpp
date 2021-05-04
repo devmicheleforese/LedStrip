@@ -200,6 +200,7 @@ void setDefaultSettings(const byte *buffer){
   Serial.println("[STRIP] - setDefaultSettings - Called");
   if(buffer[0] > 0) {
     strip.clear();
+    strip.fill(0);
     strip.show();
     deviceInfo.defaultData.ledLenght = buffer[0];
     strip.updateLength(deviceInfo.defaultData.ledLenght);
@@ -341,17 +342,13 @@ bool save_data(const char* filename) {
   sett["ColorSplitData"]["color1"][1] = deviceInfo.colorSplitData.color1.g;
   sett["ColorSplitData"]["color1"][2] = deviceInfo.colorSplitData.color1.b;
 
-  sett["ColorSplitData"]["color2"][0] = deviceInfo.colorSplitData.color1.r;
-  sett["ColorSplitData"]["color2"][1] = deviceInfo.colorSplitData.color1.g;
-  sett["ColorSplitData"]["color2"][2] = deviceInfo.colorSplitData.color1.b;
+  sett["ColorSplitData"]["color2"][0] = deviceInfo.colorSplitData.color2.r;
+  sett["ColorSplitData"]["color2"][1] = deviceInfo.colorSplitData.color2.g;
+  sett["ColorSplitData"]["color2"][2] = deviceInfo.colorSplitData.color2.b;
 
   Serial.println(String((int)deviceInfo.activeMode));
 
   sett["mode"] = (byte)deviceInfo.activeMode;
-
-  Serial.println(String((int)sett["FixedColorData"]["color"][0]));
-  Serial.println(String((int)sett["FixedColorData"]["color"][1]));
-  Serial.println(String((int)sett["FixedColorData"]["color"][2]));
 
   outFile = SPIFFS.open(filename, "w");
 
@@ -360,11 +357,6 @@ bool save_data(const char* filename) {
   }
 
   outFile.close();
-
-
-
-  //listAllFiles();
-  //readDatafromFile("/settings.json");
 
   return true;
 }
@@ -436,9 +428,9 @@ void setJsonSettingsData() {
   deviceInfo.colorSplitData.color1.g = sett["ColorSplitData"]["color1"][1];
   deviceInfo.colorSplitData.color1.b = sett["ColorSplitData"]["color1"][2];
 
-  deviceInfo.colorSplitData.color1.r = sett["ColorSplitData"]["color2"][0];
-  deviceInfo.colorSplitData.color1.g = sett["ColorSplitData"]["color2"][1];
-  deviceInfo.colorSplitData.color1.b = sett["ColorSplitData"]["color2"][2];
+  deviceInfo.colorSplitData.color2.r = sett["ColorSplitData"]["color2"][0];
+  deviceInfo.colorSplitData.color2.g = sett["ColorSplitData"]["color2"][1];
+  deviceInfo.colorSplitData.color2.b = sett["ColorSplitData"]["color2"][2];
 
   Serial.println("colorSplitData.endFirstLedSplit: " + String(deviceInfo.colorSplitData.endFirstLedSplit));
   Serial.println(
@@ -450,9 +442,9 @@ void setJsonSettingsData() {
 
   Serial.println(
     "colorSplitData.color2: " +
-    String(deviceInfo.colorSplitData.color1.r) + "," +
-    String(deviceInfo.colorSplitData.color1.g) + "," +
-    String(deviceInfo.colorSplitData.color1.b)
+    String(deviceInfo.colorSplitData.color2.r) + "," +
+    String(deviceInfo.colorSplitData.color2.g) + "," +
+    String(deviceInfo.colorSplitData.color2.b)
   );
 
   // Mode
@@ -576,6 +568,30 @@ class blecSendDataCallBack: public BLECharacteristicCallbacks {
     Serial.println("[BLE] - blecSendDataCallBack - End Callback");
   }
 };
+
+class blecNotificationCallBack: public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    Serial.println("[BLE] - blecNotificationCallBack - Called Callback");
+    std::string value = pCharacteristic->getValue();
+
+    const byte * buffer = (byte*)value.c_str();
+
+    static bool isNofitying = false;
+    if(buffer[0] == true && isNofitying == false) {
+      isNofitying = true;
+      for (size_t i = 0; i < 10; i++)
+      {
+        digitalWrite(deviceInfo.led_pin, HIGH);
+        delay(500);
+        digitalWrite(deviceInfo.led_pin, LOW);
+        delay(500);
+      }
+      isNofitying = false;
+    }
+
+    Serial.println("[BLE] - blecNotificationCallBack - End Callback");
+  }
+};
 #pragma endregion Callbacks
 
 
@@ -679,6 +695,14 @@ void BLE_init() {
   // deviceInfo.blecSendData->addDescriptor(new BLE2902());
 
 
+  deviceInfo.blecNotification = deviceInfo.blesServiceSettings->createCharacteristic(
+    deviceInfo.bluetoothSett.BLE_Notification_UUID,
+    BLECharacteristic::PROPERTY_READ |
+    BLECharacteristic::PROPERTY_WRITE
+  );
+
+  deviceInfo.blecNotification->setCallbacks(new blecNotificationCallBack());
+
   // Start the service
   deviceInfo.blesService->start();
   deviceInfo.blesServiceSettings->start();
@@ -712,6 +736,7 @@ void setup() {
   led.show();
 
   pinMode(int(deviceInfo.push_button_pin), INPUT);
+  pinMode(int(deviceInfo.led_pin), OUTPUT);
 }
 
 void run_mod() {
