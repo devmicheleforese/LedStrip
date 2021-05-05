@@ -1,3 +1,6 @@
+#ifndef UTIL_HPP
+#define UTIL_HPP
+
 #include "SPIFFS.h"
 #include <ArduinoJson.h>
 
@@ -34,6 +37,10 @@ struct Color_RGB {
   byte r;
   byte g;
   byte b;
+
+  String toString() {
+    return String(String(int(r)) + "," + String(int(g)) + "," + String(int(b)));
+  }
 };
 
 
@@ -58,3 +65,5 @@ uint32_t hex2int(const char *hex) {
   }
   return val;
 }
+
+#endif // UTIL_HPP
