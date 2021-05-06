@@ -130,10 +130,12 @@ struct DeviceInfo {
   BLECharacteristic *blecFirmwareRevision = nullptr;
 
   bool deviceConnected = false;
-  Adafruit_NeoPixel led =
-      Adafruit_NeoPixel(1, int(led_pin), NEO_GRB + NEO_KHZ800);
   Adafruit_NeoPixel strip =
       Adafruit_NeoPixel(30, int(strip_pin), NEO_GRB + NEO_KHZ800);
+
 } device;
+
+static volatile bool canNotify;
+SemaphoreHandle_t canNotifyTask;
 
 #endif // SETTINGS_HPP

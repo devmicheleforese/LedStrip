@@ -21,6 +21,9 @@
    A connect hander associated with the server starts a background task that
    performs notification every couple of seconds.
 */
+
+#include "FreeRTOS.h"
+
 #include <Adafruit_NeoPixel.h>
 #include <ArduinoJson.h>
 #include <BLE2902.h>
@@ -300,11 +303,17 @@ void setup() {
 
   loadSettingsData();
 
-  device.led.begin();
-  // device.strip.begin();
-
   pinMode(int(device.push_button_pin), INPUT);
   pinMode(int(device.led_pin), OUTPUT);
+
+  Serial.println("Before Task");
+
+  NotificationTask = xSemaphoreCreateMutex();
+
+  xTaskCreate(notification, "Notification", configMINIMAL_STACK_SIZE, NULL, 0,
+              &NotificationTask);
+  // vTaskStartScheduler();
+  Serial.println("After Task");
 }
 
 void run_mod() {

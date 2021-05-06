@@ -232,6 +232,34 @@ bool save_data(const char *filename) {
   return true;
 }
 
+TaskHandle_t NotificationTask;
+
+void notification(void *pvParameters) {
+  bool temp = false;
+  for (;;) {
+
+    xSemaphoreTake(canNotifyTask, portMAX_DELAY);
+    temp = canNotify;
+    xSemaphoreGive(canNotifyTask);
+
+    Serial.println("notification() start");
+
+    if (temp == true) {
+      for (size_t i = 0; i < 10; i++) {
+        digitalWrite(device.led_pin, HIGH);
+        delay(500);
+        digitalWrite(device.led_pin, LOW);
+        delay(500);
+      }
+      xSemaphoreTake(canNotifyTask, portMAX_DELAY);
+      canNotify = false;
+      xSemaphoreGive(canNotifyTask);
+      temp = false;
+    }
+    Serial.println("notification() end");
+  }
+}
+
 #pragma endregion CallbackSetMods
 
 #pragma region Callbacks
@@ -240,6 +268,10 @@ class StripServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer *pServer) {
     device.deviceConnected = true;
     Serial.println("Device Conected");
+
+    xSemaphoreTake(canNotifyTask, portMAX_DELAY);
+    canNotify = true;
+    xSemaphoreGive(canNotifyTask);
 
     loadSettingsData();
     BLEDevice::startAdvertising();
@@ -370,16 +402,10 @@ class blecNotificationCallBack : public BLECharacteristicCallbacks {
 
     const byte *buffer = (byte *)value.c_str();
 
-    static bool isNofitying = false;
-    if (buffer[0] == true && isNofitying == false) {
-      isNofitying = true;
-      for (size_t i = 0; i < 10; i++) {
-        digitalWrite(device.led_pin, HIGH);
-        delay(500);
-        digitalWrite(device.led_pin, LOW);
-        delay(500);
-      }
-      isNofitying = false;
+    if (buffer[0] == true) {
+      xSemaphoreTake(canNotifyTask, portMAX_DELAY);
+      canNotify = true;
+      xSemaphoreGive(canNotifyTask);
     }
 
     Serial.println("[BLE] - blecNotificationCallBack - End Callback");
