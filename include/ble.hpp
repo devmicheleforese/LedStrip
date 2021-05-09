@@ -232,31 +232,55 @@ bool save_data(const char *filename) {
   return true;
 }
 
+static bool canNotify = false;
 TaskHandle_t NotificationTask;
+SemaphoreHandle_t mutex;
+EventGroupHandle_t eg;
 
 void notification(void *pvParameters) {
+  EventBits_t uxBits;
   bool temp = false;
-  for (;;) {
+  while (true) {
+    uxBits = xEventGroupWaitBits(eg, BIT0, pdTRUE, pdFALSE,
+                                 pdMS_TO_TICKS(portMAX_DELAY));
 
-    xSemaphoreTake(canNotifyTask, portMAX_DELAY);
-    temp = canNotify;
-    xSemaphoreGive(canNotifyTask);
+    if ((uxBits & BIT0) != 0) {
+      Serial.println("notification() start");
 
-    Serial.println("notification() start");
-
-    if (temp == true) {
       for (size_t i = 0; i < 10; i++) {
         digitalWrite(device.led_pin, HIGH);
-        delay(500);
+        vTaskDelay(500 / portTICK_PERIOD_MS);
         digitalWrite(device.led_pin, LOW);
-        delay(500);
+        vTaskDelay(500 / portTICK_PERIOD_MS);
       }
-      xSemaphoreTake(canNotifyTask, portMAX_DELAY);
-      canNotify = false;
-      xSemaphoreGive(canNotifyTask);
-      temp = false;
+
+      Serial.println("notification() end");
+    } else {
+      continue;
     }
-    Serial.println("notification() end");
+
+    // if (xSemaphoreTake(mutex, 0) == pdTRUE) {
+    //   temp = canNotify;
+    //   xSemaphoreGive(mutex);
+    // }
+
+    // if (temp == true) {
+    //   Serial.println("notification() start");
+
+    //   for (size_t i = 0; i < 10; i++) {
+    //     digitalWrite(device.led_pin, HIGH);
+    //     vTaskDelay(500 / portTICK_PERIOD_MS);
+    //     digitalWrite(device.led_pin, LOW);
+    //     vTaskDelay(500 / portTICK_PERIOD_MS);
+    //   }
+
+    //   if (xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
+    //     temp = canNotify;
+    //     xSemaphoreGive(mutex);
+    //   }
+    //   temp = false;
+
+    //   Serial.println("notification() end");
   }
 }
 
@@ -269,9 +293,12 @@ class StripServerCallbacks : public BLEServerCallbacks {
     device.deviceConnected = true;
     Serial.println("Device Conected");
 
-    xSemaphoreTake(canNotifyTask, portMAX_DELAY);
-    canNotify = true;
-    xSemaphoreGive(canNotifyTask);
+    xEventGroupSetBits(eg, BIT0);
+
+    // if (xSemaphoreTake(mutex, 0) == pdTRUE) {
+    //   canNotify = true;
+    //   xSemaphoreGive(mutex);
+    // }
 
     loadSettingsData();
     BLEDevice::startAdvertising();
@@ -403,9 +430,12 @@ class blecNotificationCallBack : public BLECharacteristicCallbacks {
     const byte *buffer = (byte *)value.c_str();
 
     if (buffer[0] == true) {
-      xSemaphoreTake(canNotifyTask, portMAX_DELAY);
-      canNotify = true;
-      xSemaphoreGive(canNotifyTask);
+      xEventGroupSetBits(eg, BIT0);
+
+      // if (xSemaphoreTake(mutex, 0) == pdTRUE) {
+      //   canNotify = true;
+      //   xSemaphoreGive(mutex);
+      // }
     }
 
     Serial.println("[BLE] - blecNotificationCallBack - End Callback");

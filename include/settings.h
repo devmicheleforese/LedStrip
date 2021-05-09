@@ -135,7 +135,4 @@ struct DeviceInfo {
 
 } device;
 
-static volatile bool canNotify;
-SemaphoreHandle_t canNotifyTask;
-
 #endif // SETTINGS_HPP

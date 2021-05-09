@@ -308,12 +308,14 @@ void setup() {
 
   Serial.println("Before Task");
 
-  NotificationTask = xSemaphoreCreateMutex();
+  mutex = xSemaphoreCreateMutex();
+  eg    = xEventGroupCreate();
 
-  xTaskCreate(notification, "Notification", configMINIMAL_STACK_SIZE, NULL, 0,
-              &NotificationTask);
-  // vTaskStartScheduler();
+  xTaskCreatePinnedToCore(notification, "Notification", 1024, NULL, 2,
+                          &NotificationTask, 1);
+
   Serial.println("After Task");
+  // vTaskStartScheduler();
 }
 
 void run_mod() {
