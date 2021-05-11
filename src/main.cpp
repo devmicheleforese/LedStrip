@@ -205,6 +205,13 @@ void BLE_init() {
 
   device.blecNotification->setCallbacks(new blecNotificationCallBack());
 
+  // Characteristic - blecOnOff
+  device.blecOnOff = device.blesServiceSettings->createCharacteristic(
+      device.bluetoothSett.BLEc_OnOff_UUID,
+      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
+
+  device.blecNotification->setCallbacks(new blecOnOffCallBack());
+
   // // Server - GenericAccess
   // device.blesGenericAccess = device.bleSServer->createService(
   //     device.bluetoothSett.BLEs_GenericAccess_UUID);
@@ -221,7 +228,6 @@ void BLE_init() {
   //     BLEUUID(device.bluetoothSett.BLEc_Appearance_UUID),
   //     BLECharacteristic::PROPERTY_READ);
 
-  uint16_t appearance = 0x07C6;
   // device.blecAppearance->setValue(appearance);
 
   // // Characteristic - blecPeripheralPreferredConnectionParameters
@@ -277,16 +283,13 @@ void BLE_init() {
   device.bleaAdvertising->setMinPreferred(
       0x0); // set value to 0x00 to not advertise this parameter
   device.bleaAdvertising->start();
+
+  uint16_t appearance = 0x07C6;
+
   device.bleaAdvertising->setAppearance(appearance);
 
   device.bleaAdvertising->start();
 
-  BLEService *testService = device.bleSServer->getServiceByUUID(
-      BLEUUID(device.bluetoothSett.BLEs_GenericAccess_UUID));
-
-  if (testService != nullptr) {
-    Serial.println("Service found: " + String(testService->toString().c_str()));
-  }
   Serial.println("Waiting a client connection to notify...");
 }
 
@@ -295,8 +298,6 @@ void setup() {
 
   Serial.println("BEGIN");
 
-  // delay(5000);
-
   setJsonSettingsData();
 
   BLE_init();
@@ -304,18 +305,18 @@ void setup() {
   loadSettingsData();
 
   pinMode(int(device.push_button_pin), INPUT);
-  pinMode(int(device.led_pin), OUTPUT);
+
+  device.led.begin();
+  device.strip.begin();
 
   Serial.println("Before Task");
 
-  mutex = xSemaphoreCreateMutex();
-  eg    = xEventGroupCreate();
+  notificationEvent = xEventGroupCreate();
 
-  xTaskCreatePinnedToCore(notification, "Notification", 1024, NULL, 2,
+  xTaskCreatePinnedToCore(notificationLoop, "Notification", 1024, NULL, 2,
                           &NotificationTask, 1);
 
   Serial.println("After Task");
-  // vTaskStartScheduler();
 }
 
 void run_mod() {

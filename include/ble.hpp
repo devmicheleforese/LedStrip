@@ -70,6 +70,14 @@ void loadSettingsData() {
   Serial.println("[STRIP] - sendSettings - blecActiveMode - Data: " +
                  String(int(data[0])));
 
+  byte blecOnOff[] = {
+      byte(device.isOn),
+  };
+  device.blecOnOff->setValue(blecOnOff, sizeof(blecOnOff));
+  data = device.blecActiveMode->getData();
+  Serial.println("[STRIP] - sendSettings - blecOnOff - Data: " +
+                 String(int(data[0])));
+
   Serial.println("[STRIP] - sendSettings - Sending Settings Done");
 }
 
@@ -217,8 +225,6 @@ bool save_data(const char *filename) {
   sett["ColorSplitData"]["color2"][1] = device.colorSplitData.color2.g;
   sett["ColorSplitData"]["color2"][2] = device.colorSplitData.color2.b;
 
-  Serial.println(String((int)device.activeMode));
-
   sett["mode"] = (byte)device.activeMode;
 
   outFile = SPIFFS.open(filename, "w");
@@ -232,55 +238,37 @@ bool save_data(const char *filename) {
   return true;
 }
 
-static bool canNotify = false;
 TaskHandle_t NotificationTask;
-SemaphoreHandle_t mutex;
-EventGroupHandle_t eg;
+EventGroupHandle_t notificationEvent;
 
-void notification(void *pvParameters) {
+void notificationLoop(void *pvParameters) {
   EventBits_t uxBits;
-  bool temp = false;
+  // device.led.begin();
+
   while (true) {
-    uxBits = xEventGroupWaitBits(eg, BIT0, pdTRUE, pdFALSE,
+    uxBits = xEventGroupWaitBits(notificationEvent, BIT0, pdTRUE, pdFALSE,
                                  pdMS_TO_TICKS(portMAX_DELAY));
 
     if ((uxBits & BIT0) != 0) {
       Serial.println("notification() start");
 
-      for (size_t i = 0; i < 10; i++) {
-        digitalWrite(device.led_pin, HIGH);
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-        digitalWrite(device.led_pin, LOW);
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-      }
+      // for (size_t i = 0; i < 10; i++) {
+      //   digitalWrite(13, HIGH);
+      //   // device.led.setPixelColor(0,
+      //   //                          Adafruit_NeoPixel::Color(255, 255, 255,
+      //   //                          255));
+      //   // device.led.show();
+      //   vTaskDelay(500 / portTICK_RATE_MS);
+      //   digitalWrite(13, LOW);
+      //   // device.led.clear();
+      //   // device.led.show();
+      //   vTaskDelay(500 / portTICK_RATE_MS);
+      // }
 
       Serial.println("notification() end");
     } else {
       continue;
     }
-
-    // if (xSemaphoreTake(mutex, 0) == pdTRUE) {
-    //   temp = canNotify;
-    //   xSemaphoreGive(mutex);
-    // }
-
-    // if (temp == true) {
-    //   Serial.println("notification() start");
-
-    //   for (size_t i = 0; i < 10; i++) {
-    //     digitalWrite(device.led_pin, HIGH);
-    //     vTaskDelay(500 / portTICK_PERIOD_MS);
-    //     digitalWrite(device.led_pin, LOW);
-    //     vTaskDelay(500 / portTICK_PERIOD_MS);
-    //   }
-
-    //   if (xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
-    //     temp = canNotify;
-    //     xSemaphoreGive(mutex);
-    //   }
-    //   temp = false;
-
-    //   Serial.println("notification() end");
   }
 }
 
@@ -292,13 +280,10 @@ class StripServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer *pServer) {
     device.deviceConnected = true;
     Serial.println("Device Conected");
+    device.led.fill(Adafruit_NeoPixel::Color(255, 255, 255, 255));
+    device.led.show();
 
-    xEventGroupSetBits(eg, BIT0);
-
-    // if (xSemaphoreTake(mutex, 0) == pdTRUE) {
-    //   canNotify = true;
-    //   xSemaphoreGive(mutex);
-    // }
+    xEventGroupSetBits(notificationEvent, BIT0);
 
     loadSettingsData();
     BLEDevice::startAdvertising();
@@ -313,6 +298,9 @@ class StripServerCallbacks : public BLEServerCallbacks {
     } else {
       Serial.println("[DEVICE] - save_data('/settings.json') - Data Saved");
     }
+
+    device.led.clear();
+    device.led.show();
 
     Serial.println("Device Disconnected");
   }
@@ -430,15 +418,27 @@ class blecNotificationCallBack : public BLECharacteristicCallbacks {
     const byte *buffer = (byte *)value.c_str();
 
     if (buffer[0] == true) {
-      xEventGroupSetBits(eg, BIT0);
-
-      // if (xSemaphoreTake(mutex, 0) == pdTRUE) {
-      //   canNotify = true;
-      //   xSemaphoreGive(mutex);
-      // }
+      xEventGroupSetBits(notificationEvent, BIT0);
     }
 
     Serial.println("[BLE] - blecNotificationCallBack - End Callback");
+  }
+};
+
+class blecOnOffCallBack : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    Serial.println("[BLE] - blecOnOffCallBack - Called Callback");
+    std::string value = pCharacteristic->getValue();
+
+    const byte *buffer = (byte *)value.c_str();
+
+    if (buffer[0] > 0) {
+      device.isOn = true;
+    } else {
+      device.isOn = false;
+    }
+
+    Serial.println("[BLE] - blecOnOffCallBack - End Callback");
   }
 };
 
