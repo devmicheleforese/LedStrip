@@ -135,4 +135,6 @@ struct DeviceInfo {
 
 } device;
 
+Adafruit_NeoPixel *led = new Adafruit_NeoPixel(1, 13, NEO_GRB + NEO_KHZ800);
+
 #endif // SETTINGS_HPP
