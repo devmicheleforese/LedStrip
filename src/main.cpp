@@ -46,11 +46,68 @@ bool SPIFFS_init() {
   return true;
 }
 
-void setJsonSettingsData() {
+/**
+ * @brief Create a Default Settings File object
+ *
+ * @return int 0 -> OK | 1 -> ERROR
+ */
+int createDefaultSettingsFile() {
+  Serial.print("Recreating Default Settings File");
+
+  File file = SPIFFS.open("/settings.json", FILE_WRITE);
+  DynamicJsonDocument sett(1024);
+
+  // DefaultData
+  sett["DefaultData"]["ledLenght"] = device.defaultData.ledLenght = 10;
+  sett["DefaultData"]["brightness"] = device.defaultData.brightness = 255;
+
+  // FixedColorData
+  sett["FixedColorData"]["color"][0] = device.fixedColorData.color.r = 100;
+  sett["FixedColorData"]["color"][1] = device.fixedColorData.color.g = 100;
+  sett["FixedColorData"]["color"][2] = device.fixedColorData.color.b = 100;
+
+  // RainbowData
+  sett["RainbowData"]["velocity"] = device.rainbowData.velocity = 50;
+
+  // ColorSplitData
+  sett["ColorSplitData"]["endFirstLedSplit"] =
+      device.colorSplitData.endFirstLedSplit = 5;
+
+  sett["ColorSplitData"]["color1"][0] = device.colorSplitData.color1.r = 200;
+  sett["ColorSplitData"]["color1"][1] = device.colorSplitData.color1.g = 200;
+  sett["ColorSplitData"]["color1"][2] = device.colorSplitData.color1.b = 200;
+
+  sett["ColorSplitData"]["color2"][0] = device.colorSplitData.color2.r = 150;
+  sett["ColorSplitData"]["color2"][1] = device.colorSplitData.color2.g = 150;
+  sett["ColorSplitData"]["color2"][2] = device.colorSplitData.color2.b = 150;
+
+  // Mode
+  device.activeMode = Mode_Type::fixed_color;
+  sett["mode"]      = int(device.activeMode);
+
+#define serializeJsonError 0
+  if (serializeJson(sett, file) == serializeJsonError) {
+    return 1;
+  }
+
+  file.close();
+  return 0;
+}
+
+/**
+ * @brief Set the Json Settings Data object
+ *
+ * @return int Error Code
+ * 0 -> OK
+ * 1 -> SPIFFS initialization error
+ * 2 -> Failed opening "/settings" file
+ * 3 -> Failed to Deserialize file
+ */
+int setJsonSettingsData() {
   // Initialize SPIFFS
   if (!SPIFFS_init()) {
     Serial.println("ERROR: SPIFFS_init()");
-    return;
+    return 1;
   } else {
     Serial.println("SPIFFS Initialized");
   }
@@ -61,7 +118,7 @@ void setJsonSettingsData() {
   // Error Checking for reading file
   if (!file) {
     Serial.print("Failed to open file for reading");
-    return;
+    return 2;
   } else {
     Serial.println("File opened");
   }
@@ -70,8 +127,13 @@ void setJsonSettingsData() {
   DynamicJsonDocument sett(1024);
   // Error checking
   DeserializationError error = deserializeJson(sett, file);
-  if (error)
+  if (error) {
     Serial.print("Failed to Deserialize.");
+    return 3;
+  } else {
+    Serial.println("Deserialization Completed");
+  }
+
   file.close();
 
   //-------- retrive settings --------//
@@ -212,31 +274,6 @@ void BLE_init() {
 
   device.blecNotification->setCallbacks(new blecOnOffCallBack());
 
-  // // Server - GenericAccess
-  // device.blesGenericAccess = device.bleSServer->createService(
-  //     device.bluetoothSett.BLEs_GenericAccess_UUID);
-
-  // // Characteristic - blecDeviceName
-  // device.blecDeviceName = device.blesGenericAccess->createCharacteristic(
-  //     BLEUUID(device.bluetoothSett.BLEc_DeviceName_UUID),
-  //     BLECharacteristic::PROPERTY_READ);
-
-  // device.blecDeviceName->setValue("Strip Led");
-
-  // // Characteristic - blecAppearance
-  // device.blecAppearance = device.blesGenericAccess->createCharacteristic(
-  //     BLEUUID(device.bluetoothSett.BLEc_Appearance_UUID),
-  //     BLECharacteristic::PROPERTY_READ);
-
-  // device.blecAppearance->setValue(appearance);
-
-  // // Characteristic - blecPeripheralPreferredConnectionParameters
-  // device.blecPeripheralPreferredConnectionParameters =
-  //     device.blesGenericAccess->createCharacteristic(
-  //         BLEUUID(device.bluetoothSett
-  //                     .BLEc_PeripheralPreferredConnectionParameters_UUID),
-  //         BLECharacteristic::PROPERTY_READ);
-
   // Server - Device Information
   device.blesDeviceInformation = device.bleSServer->createService(
       device.bluetoothSett.BLEs_DeviceInformation_UUID);
@@ -298,23 +335,29 @@ void setup() {
 
   Serial.println("BEGIN");
 
-  setJsonSettingsData();
+  switch (setJsonSettingsData()) {
+  case 0:
+    Serial.println("Json Settings OK.");
+    break;
+  case 1:
+    Serial.println("SPIFFS initialization error.");
+    break;
+  case 2:
+    Serial.println("Failed opening \"/settings\" file");
+    createDefaultSettingsFile();
+    break;
+  case 3:
+    Serial.println("Failed to Deserialize file");
+    createDefaultSettingsFile();
+    break;
+  }
 
   BLE_init();
 
-  loadSettingsData();
+  loadBLESettingsData();
 
   pinMode(int(device.push_button_pin), INPUT);
   led->begin();
-
-  Serial.println("Before Task");
-
-  // eg = xEventGroupCreate();
-
-  // xTaskCreatePinnedToCore(notification, "Notification", 1024, NULL, 2,
-  //                         &NotificationTask, 1);
-
-  Serial.println("After Task");
 }
 
 void run_mod() {

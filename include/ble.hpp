@@ -14,7 +14,7 @@
 
 #pragma region CallbackSetMods
 
-void loadSettingsData() {
+void loadBLESettingsData() {
   // TODO: Update function for sending data to the right location.
   Serial.println("[STRIP] - sendSettings - Sending Settings to Phone");
   byte *data;
@@ -36,7 +36,8 @@ void loadSettingsData() {
   device.blecFixedColorData->setValue(fixedColorData, sizeof(fixedColorData));
   data = device.blecFixedColorData->getData();
   Serial.println("[STRIP] - sendSettings - blecFixedColorData - Data: " +
-                 String(int(data[0])) + "," + String(int(data[1])));
+                 String(int(data[0])) + "," + String(int(data[1])) + "," +
+                 String(int(data[2])));
 
   // blecRainbowData
   byte rainbowData[] = {
@@ -239,39 +240,8 @@ bool save_data(const char *filename) {
   return true;
 }
 
-TaskHandle_t NotificationTask;
-EventGroupHandle_t notificationEvent;
-
-void notificationLoop(void *pvParameters) {
-  EventBits_t uxBits;
-  // device.led.begin();
-
-  while (true) {
-    uxBits = xEventGroupWaitBits(notificationEvent, BIT0, pdTRUE, pdFALSE,
-                                 pdMS_TO_TICKS(portMAX_DELAY));
-
-    if ((uxBits & BIT0) != 0) {
-      Serial.println("notification() start");
-
-      // for (size_t i = 0; i < 10; i++) {
-      //   digitalWrite(13, HIGH);
-      //   // device.led.setPixelColor(0,
-      //   //                          Adafruit_NeoPixel::Color(255, 255, 255,
-      //   //                          255));
-      //   // device.led.show();
-      //   vTaskDelay(500 / portTICK_RATE_MS);
-      //   digitalWrite(13, LOW);
-      //   // device.led.clear();
-      //   // device.led.show();
-      //   vTaskDelay(500 / portTICK_RATE_MS);
-      // }
-
-      Serial.println("notification() end");
-    } else {
-      continue;
-    }
-  }
-}
+// TaskHandle_t NotificationTask;
+// EventGroupHandle_t notificationEvent;
 
 #pragma endregion CallbackSetMods
 
@@ -284,9 +254,9 @@ class StripServerCallbacks : public BLEServerCallbacks {
     device.led.fill(Adafruit_NeoPixel::Color(255, 255, 255, 255));
     device.led.show();
 
-    xEventGroupSetBits(notificationEvent, BIT0);
+    // xEventGroupSetBits(notificationEvent, BIT0);
 
-    loadSettingsData();
+    loadBLESettingsData();
     BLEDevice::startAdvertising();
   };
 
@@ -400,7 +370,7 @@ class blecSendDataCallBack : public BLECharacteristicCallbacks {
 
     // if there is a "1" then save the data
     if (buffer[0] == true) {
-      loadSettingsData();
+      loadBLESettingsData();
       Serial.println("[BLE] - blecSendDataCallBack - Data Send");
     } else {
       Serial.println("[BLE] - blecSendDataCallBack - Error: buffer data");
@@ -418,9 +388,9 @@ class blecNotificationCallBack : public BLECharacteristicCallbacks {
 
     const byte *buffer = (byte *)value.c_str();
 
-    if (buffer[0] == true) {
-      xEventGroupSetBits(notificationEvent, BIT0);
-    }
+    // if (buffer[0] == true) {
+    //   xEventGroupSetBits(notificationEvent, BIT0);
+    // }
 
     Serial.println("[BLE] - blecNotificationCallBack - End Callback");
   }
