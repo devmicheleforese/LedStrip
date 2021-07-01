@@ -305,16 +305,14 @@ void setup() {
   loadSettingsData();
 
   pinMode(int(device.push_button_pin), INPUT);
-
-  device.led.begin();
-  device.strip.begin();
+  led->begin();
 
   Serial.println("Before Task");
 
-  notificationEvent = xEventGroupCreate();
+  // eg = xEventGroupCreate();
 
-  xTaskCreatePinnedToCore(notificationLoop, "Notification", 1024, NULL, 2,
-                          &NotificationTask, 1);
+  // xTaskCreatePinnedToCore(notification, "Notification", 1024, NULL, 2,
+  //                         &NotificationTask, 1);
 
   Serial.println("After Task");
 }
@@ -336,9 +334,14 @@ void run_mod() {
 }
 
 void loop() {
+  if (device.deviceConnected) {
+    led->fill(Adafruit_NeoPixel::Color(255, 255, 255));
+    led->show();
+  } else {
+    led->clear();
+    led->show();
+  }
   run_mod();
-
-  device.strip.show();
 }
 
 int main() {

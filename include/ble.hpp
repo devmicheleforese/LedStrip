@@ -10,6 +10,7 @@
 #include "Arduino.h"
 #include "SPIFFS.h"
 #include "settings.h"
+#include <Adafruit_NeoPixel.h>
 
 #pragma region CallbackSetMods
 
