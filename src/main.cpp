@@ -85,6 +85,9 @@ int createDefaultSettingsFile() {
   device.activeMode = Mode_Type::fixed_color;
   sett["mode"]      = int(device.activeMode);
 
+  // isOn
+  sett["isOn"] = device.isOn = true;
+
 #define serializeJsonError 0
   if (serializeJson(sett, file) == serializeJsonError) {
     return 1;
@@ -180,6 +183,9 @@ int setJsonSettingsData() {
     break;
   }
 
+  // isOn
+  device.isOn = int(sett["isOn"]);
+
   device.print();
 }
 
@@ -260,19 +266,12 @@ void BLE_init() {
 
   device.blecSendData->setCallbacks(new blecSendDataCallBack());
 
-  // Characteristic - blecNotification
-  device.blecNotification = device.blesServiceSettings->createCharacteristic(
-      device.bluetoothSett.BLEc_Notification_UUID,
-      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
-
-  device.blecNotification->setCallbacks(new blecNotificationCallBack());
-
   // Characteristic - blecOnOff
   device.blecOnOff = device.blesServiceSettings->createCharacteristic(
       device.bluetoothSett.BLEc_OnOff_UUID,
       BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
 
-  device.blecNotification->setCallbacks(new blecOnOffCallBack());
+  device.blecOnOff->setCallbacks(new blecOnOffCallBack());
 
   // Server - Device Information
   device.blesDeviceInformation = device.bleSServer->createService(
@@ -384,7 +383,9 @@ void loop() {
     led->clear();
     led->show();
   }
-  run_mod();
+  if (device.isOn == true) {
+    run_mod();
+  }
 }
 
 int main() {

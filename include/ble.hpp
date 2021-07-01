@@ -381,21 +381,6 @@ class blecSendDataCallBack : public BLECharacteristicCallbacks {
   }
 };
 
-class blecNotificationCallBack : public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic) {
-    Serial.println("[BLE] - blecNotificationCallBack - Called Callback");
-    std::string value = pCharacteristic->getValue();
-
-    const byte *buffer = (byte *)value.c_str();
-
-    // if (buffer[0] == true) {
-    //   xEventGroupSetBits(notificationEvent, BIT0);
-    // }
-
-    Serial.println("[BLE] - blecNotificationCallBack - End Callback");
-  }
-};
-
 class blecOnOffCallBack : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     Serial.println("[BLE] - blecOnOffCallBack - Called Callback");

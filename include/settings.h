@@ -115,7 +115,6 @@ struct DeviceInfo {
   BLEService *blesServiceSettings     = nullptr;
   BLECharacteristic *blecSaveSettings = nullptr;
   BLECharacteristic *blecSendData     = nullptr;
-  BLECharacteristic *blecNotification = nullptr;
   BLECharacteristic *blecOnOff        = nullptr;
 
   BLEService *blesGenericAccess                                  = nullptr;
