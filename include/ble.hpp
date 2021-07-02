@@ -389,9 +389,7 @@ class blecOnOffCallBack : public BLECharacteristicCallbacks {
     const byte *buffer = (byte *)value.c_str();
 
     if (buffer[0] > 0) {
-      device.isOn = true;
-    } else {
-      device.isOn = false;
+      device.isOn = !device.isOn;
     }
 
     Serial.println("[BLE] - blecOnOffCallBack - End Callback");

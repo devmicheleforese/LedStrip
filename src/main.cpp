@@ -178,15 +178,13 @@ int setJsonSettingsData() {
   case (int)Mode_Type::color_split:
     device.activeMode = Mode_Type::color_split;
     break;
-  default:
-    device.activeMode = Mode_Type::fixed_color;
-    break;
   }
 
   // isOn
   device.isOn = int(sett["isOn"]);
 
   device.print();
+  return 0;
 }
 
 void BLE_init() {
@@ -272,6 +270,7 @@ void BLE_init() {
       BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
 
   device.blecOnOff->setCallbacks(new blecOnOffCallBack());
+  device.blecOnOff->addDescriptor(new BLE2902());
 
   // Server - Device Information
   device.blesDeviceInformation = device.bleSServer->createService(
@@ -355,7 +354,7 @@ void setup() {
 
   loadBLESettingsData();
 
-  pinMode(int(device.push_button_pin), INPUT);
+  pinMode(device.push_button_pin, INPUT);
   led->begin();
 }
 
@@ -373,9 +372,29 @@ void run_mod() {
   default:
     break;
   }
+
+  device.strip.clear();
+  device.strip.show();
 }
 
 void loop() {
+  Serial.println("On-Off state: " + String(device.isOn));
+
+  // ON - OFF Button Pressed
+  static uint8_t lastBtnState = HIGH;
+  uint8_t state               = digitalRead(device.push_button_pin);
+
+  Serial.println("State: " + String(state));
+
+  if (state != lastBtnState) {
+    lastBtnState = lastBtnState == HIGH ? LOW : HIGH;
+    if (state == LOW) {
+      Serial.println("Button PRESSED");
+      device.isOn = !device.isOn;
+    }
+  }
+
+  // LED connection State
   if (device.deviceConnected) {
     led->fill(Adafruit_NeoPixel::Color(255, 255, 255));
     led->show();
@@ -383,6 +402,7 @@ void loop() {
     led->clear();
     led->show();
   }
+
   if (device.isOn == true) {
     run_mod();
   }

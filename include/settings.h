@@ -99,6 +99,7 @@ struct DeviceInfo {
     rainbowData.print();
     colorSplitData.print();
     Serial.println("ActiveMode: " + String(int(activeMode)));
+    Serial.println("OnOffState: " + String(isOn));
   }
 
   // BLE
