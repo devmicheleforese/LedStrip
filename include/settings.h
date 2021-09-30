@@ -65,7 +65,6 @@ struct BluetoothSett {
   char BLEs_Settings_UUID[37]     = "f349aa66-7acf-41c6-b9a4-ce34ef3f54e6";
   char BLEc_SaveSettings_UUID[37] = "2c203874-7ad6-4230-bc5c-09e2aa7a382f";
   char BLEc_SendData_UUID[37]     = "0c098b94-87d6-4cfa-b649-7ad5debb4409";
-  char BLEc_Notification_UUID[37] = "f5964ee2-01fb-4e94-8843-fdbeb3b3f723";
   char BLEc_OnOff_UUID[37]        = "301b81e3-8e41-4b84-804f-2ad18cc092e5";
 
   // uint16_t BLEs_GenericAccess_UUID = 0x1800; // Generic Service

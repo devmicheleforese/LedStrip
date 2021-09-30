@@ -247,6 +247,10 @@ bool save_data(const char *filename) {
 
 #pragma region Callbacks
 
+///
+///@brief Callback, When BLE is connected to a device
+///
+///
 class StripServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer *pServer) {
     device.deviceConnected = true;
@@ -277,6 +281,11 @@ class StripServerCallbacks : public BLEServerCallbacks {
   }
 };
 
+///
+///@brief Callback, It sets the values for the LedLenght and Brightness
+/// [LedLenght, Brightness] [8,8]
+///
+///
 class blecDefaultDataCallback : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     Serial.println("[BLE] - blecDefaultDataCallback - Called Callback");
@@ -288,6 +297,11 @@ class blecDefaultDataCallback : public BLECharacteristicCallbacks {
   }
 };
 
+///
+///@brief Callback, it sets the value for the FixedColor Mode
+/// [red_value, green_value, blue_value] [8,8,8]
+///
+///
 class blecFixedColorDataCallback : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     Serial.println("[BLE] - blecFixedColorDataCallback - Called Callback");
@@ -300,6 +314,11 @@ class blecFixedColorDataCallback : public BLECharacteristicCallbacks {
   }
 };
 
+///
+///@brief Callback, it sets te value for the Rainbow Mode
+/// [velocity] [8]
+///
+///
 class blecRainbowDataCallback : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     Serial.println("[BLE] - blecRainbowDataCallback - Called Callback");
@@ -312,6 +331,12 @@ class blecRainbowDataCallback : public BLECharacteristicCallbacks {
   }
 };
 
+///
+///@brief Callback, it sets the value for the Color Split Mode
+/// [8, 8,8,8, 8,8,8]
+/// [endFirstLedSplit, red1, green1, blue1, red2, green2, blue2]
+///
+///
 class blecColorSplitDataCallback : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     Serial.println("[BLE] - blecColorSplitDataCallback - Called Callback");
@@ -324,6 +349,12 @@ class blecColorSplitDataCallback : public BLECharacteristicCallbacks {
   }
 };
 
+///
+///@brief Callback, it sets the Current Active Mode
+/// [8]
+/// [activeMode]
+///
+///
 class blecActiveModeCallback : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     Serial.println("[BLE] - blecActiveModeCallback - Called Callback");
@@ -337,6 +368,12 @@ class blecActiveModeCallback : public BLECharacteristicCallbacks {
   }
 };
 
+///
+///@brief Callback, it says to Save the current configuration to the JSON
+/// bits: [8]
+/// payload: [n > 0]
+///
+///
 class blecSaveSettingsCallback : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     Serial.println("[BLE] - blecSaveSettingsCallback - Called Callback");
@@ -361,6 +398,12 @@ class blecSaveSettingsCallback : public BLECharacteristicCallbacks {
   }
 };
 
+///
+///@brief Callback, if trigged asks to resend the Configuration data and update
+/// the payload of the BLE
+/// bits: [8]
+/// payload: [n > 0]
+///
 class blecSendDataCallBack : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     Serial.println("[BLE] - blecSendDataCallBack - Called Callback");
@@ -369,7 +412,7 @@ class blecSendDataCallBack : public BLECharacteristicCallbacks {
     const byte *buffer = (byte *)value.c_str();
 
     // if there is a "1" then save the data
-    if (buffer[0] == true) {
+    if (buffer[0] > 0) {
       loadBLESettingsData();
       Serial.println("[BLE] - blecSendDataCallBack - Data Send");
     } else {
@@ -381,6 +424,12 @@ class blecSendDataCallBack : public BLECharacteristicCallbacks {
   }
 };
 
+///
+///@brief Callback, it sets the state of the device []ON [x]OFF
+/// bits: [8]
+/// payload: [n > 0]
+///
+///
 class blecOnOffCallBack : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     Serial.println("[BLE] - blecOnOffCallBack - Called Callback");
